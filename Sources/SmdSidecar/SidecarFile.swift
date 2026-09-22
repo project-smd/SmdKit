@@ -186,6 +186,9 @@ public enum SidecarFile {
     private static func serialise(_ document: XMLDocument) -> Data {
         document.version = "1.0"
         document.characterEncoding = "UTF-8"
+        // A document parsed from data comes back marked standalone; the repository writer does
+        // not say so, and a sidecar should read as the same file.
+        document.isStandalone = false
         var data = document.xmlData(options: [.nodePrettyPrint, .nodeCompactEmptyElement])
         if data.last != UInt8(ascii: "\n") { data.append(UInt8(ascii: "\n")) }
         return data
