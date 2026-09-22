@@ -27,6 +27,12 @@ swift test
 - `LocalRepository` is the phase 1 implementation: a folder that is a clone of the data
   repository.
 
+- `SmdSidecar`, a target of its own, is the `.smd` as a library keeps it: `Sidecar` is a
+  `Container` plus which file holds each presentation of each item and where each child's
+  sidecar is, and `SidecarFile` reads and writes it as the repository file with those facts in.
+  Writing has an update mode that changes only the library's facts in a document that is
+  already on disk, leaving comments and hand-written fields alone.
+
 Discs, releases and bindings are not here yet. They arrive with the identify and bind steps of
 the ingestion flow, when their shape is known from use rather than from the proposal.
 

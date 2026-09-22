@@ -15,9 +15,15 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "SmdKit", targets: ["SmdKit"]),
+        .library(name: "SmdSidecar", targets: ["SmdSidecar"]),
     ],
     targets: [
         .target(name: "SmdKit"),
+        // The .smd as a library keeps it: the container plus which file holds each presentation.
+        // A target of its own so that a reader of the repository — which has no files in it —
+        // never sees a presentation type.
+        .target(name: "SmdSidecar", dependencies: ["SmdKit"]),
         .testTarget(name: "SmdKitTests", dependencies: ["SmdKit"]),
+        .testTarget(name: "SmdSidecarTests", dependencies: ["SmdSidecar", "SmdKit"]),
     ]
 )
