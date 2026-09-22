@@ -216,7 +216,7 @@ public struct Feature: Identifiable, Hashable, Sendable {
     }
 }
 
-public struct FeatureType: Hashable, Sendable, RawRepresentable, CustomStringConvertible {
+public struct FeatureType: Hashable, Sendable, Codable, RawRepresentable, CustomStringConvertible {
     public let rawValue: String
 
     public init(rawValue: String) {
@@ -309,7 +309,7 @@ public struct Entry: Hashable, Sendable {
     }
 }
 
-public struct EntryType: Hashable, Sendable, RawRepresentable, CustomStringConvertible {
+public struct EntryType: Hashable, Sendable, Codable, RawRepresentable, CustomStringConvertible {
     public let rawValue: String
 
     public init(rawValue: String) {
