@@ -3,11 +3,15 @@
 
 # SmdKit
 
-The parts of smddb that are not an app: the container model from
-`Proposals/ContainerDatabase.md`, the file each container is kept as in the data repository, and
-the interface a tool asks the database through. The macOS ingestion tool depends on it by path;
-a validator for CI and, later, a service serving the same files are its other callers, which is
-why it is a package of its own with no Apple-only dependency in it.
+The parts of [smddb](https://github.com/project-smd/smd-tools) that are not an app: the
+container model from its `Proposals/ContainerDatabase.md`, the file each container is kept as in
+the data repository, and the interface a tool asks the database through. The macOS ingestion tool
+in smd-tools depends on it; so will a validator for CI and the
+[silo](https://github.com/media-silo/silo-server), a server serving a library of the same
+containers, which is why it is a package of its own, in a repository of its own, with no
+Apple-only dependency in it.
+
+Tracked by its `main` branch until it has a release to pin to, as MakeMKVKit is.
 
 ```sh
 swift test
