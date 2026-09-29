@@ -79,7 +79,7 @@ database proposal keeps small.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<container format="1" id="6a1f0c2e-9b7d-4e3a-8f5c-1d2e3f4a5b6c" type="serial">
+<container format="1" id="6a1f0c2e9b7d4e3a" type="serial">
     <title>The Talons of Weng-Chiang</title>
     <typeLabel>Story</typeLabel>
     <externalRef provider="wikidata" value="Q3475469"/>
