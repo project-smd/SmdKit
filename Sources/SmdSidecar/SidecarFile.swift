@@ -106,17 +106,27 @@ public enum SidecarFile {
             byID[id] = element
         }
 
+        // The library's facts: the value's replace the document's for every item and child the
+        // value's container declares, so a fact the value no longer has is removed. Items only the
+        // document has are drift, left with their facts for a validator to report.
+        let entries = sidecar.container.sequences.flatMap(\.items) + sidecar.container.extras
+        let declared = Set(entries.compactMap { $0.id?.value })
+        let held = Set(entries.compactMap { entry -> ContainerID? in
+            if case .child(let child) = entry { return child.container }
+            return nil
+        })
+        for (id, item) in byID where declared.contains(id) && sidecar.presentations[id] == nil {
+            for existing in item.elements(forName: "presentation") { existing.detach() }
+        }
         for (id, presentations) in sidecar.presentations {
             guard let item = byID[id] else { throw SidecarFileError.unknownItem(id) }
             for existing in item.elements(forName: "presentation") { existing.detach() }
             for presentation in presentations { item.addChild(presentationElement(presentation)) }
         }
         for item in byID.values {
-            guard let child = item.attribute("container").flatMap(ContainerID.init) else { continue }
-            if let path = sidecar.children[child] {
-                item.removeAttribute(forName: "smd")
-                item.set("smd", path)
-            }
+            guard let child = item.attribute("container").flatMap(ContainerID.init), held.contains(child) else { continue }
+            item.removeAttribute(forName: "smd")
+            item.set("smd", sidecar.children[child])
         }
     }
 
