@@ -92,11 +92,36 @@ enum XMLText {
         }
     }
 
-    /// The string without the characters XML 1.0 cannot carry.
-    static func carried(_ string: String) -> String {
-        guard !string.unicodeScalars.allSatisfy(carries) else { return string }
+    /// Text as the writer writes it: without the characters XML 1.0 cannot carry, and with a
+    /// carriage return, alone or before a line feed, as a line feed.
+    ///
+    /// The writer folds line ends itself because the platforms' serialisers disagree: Darwin
+    /// writes a carriage return as itself, which the reader's end-of-line handling folds, while
+    /// Linux writes it as a character reference, which survives. A value has to read back the
+    /// same whichever platform wrote it.
+    static func text(_ string: String) -> String {
+        guard string.unicodeScalars.contains(where: { !carries($0) || $0 == "\r" }) else { return string }
         var result = String.UnicodeScalarView()
-        result.append(contentsOf: string.unicodeScalars.filter(carries))
+        var afterReturn = false
+        for scalar in string.unicodeScalars where carries(scalar) {
+            if scalar == "\r" {
+                result.append("\n")
+            } else if !(scalar == "\n" && afterReturn) {
+                result.append(scalar)
+            }
+            afterReturn = scalar == "\r"
+        }
+        return String(result)
+    }
+
+    /// An attribute value as the writer writes it: as `text(_:)`, then with each tab and line
+    /// feed as a space — what the reader's attribute normalisation makes of them on Darwin, and
+    /// what Linux's character references would otherwise carry through unchanged.
+    static func attribute(_ string: String) -> String {
+        let text = text(string)
+        guard text.unicodeScalars.contains(where: { $0 == "\t" || $0 == "\n" }) else { return text }
+        var result = String.UnicodeScalarView()
+        result.append(contentsOf: text.unicodeScalars.map { $0 == "\t" || $0 == "\n" ? " " : $0 })
         return String(result)
     }
 }

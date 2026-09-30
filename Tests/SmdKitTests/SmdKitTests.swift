@@ -134,6 +134,41 @@ struct SmdKitTests {
         #expect(throws: ContainerFileError.invalidValue(element: "item", attribute: "ref", value: "a#b")) {
             try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><sequence><item ref="a#b"/></sequence></container>"#)
         }
+        #expect(throws: ContainerFileError.invalidValue(element: "item", attribute: "ref", value: "")) {
+            try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><sequence><item ref=""/></sequence></container>"#)
+        }
+        #expect(throws: ContainerFileError.invalidValue(element: "item", attribute: "container", value: "xyz")) {
+            try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><sequence><item type="container" id="s1" container="xyz"/></sequence></container>"#)
+        }
+        #expect(throws: ContainerFileError.missingAttribute(element: "item", attribute: "type")) {
+            try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><sequence><item id="e1"/></sequence></container>"#)
+        }
+        #expect(throws: ContainerFileError.missingAttribute(element: "item", attribute: "id")) {
+            try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><sequence><item type="episode"/></sequence></container>"#)
+        }
+        #expect(throws: ContainerFileError.invalidValue(element: "sequence", attribute: "exploded", value: "sometimes")) {
+            try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><sequence exploded="sometimes"/></container>"#)
+        }
+        #expect(throws: ContainerFileError.invalidValue(element: "container", attribute: "listed", value: "yes")) {
+            try read(#"<container format="1" id="\#(id)" type="series" listed="yes"><title>x</title></container>"#)
+        }
+        #expect(throws: ContainerFileError.invalidValue(element: "item", attribute: "optional", value: "1")) {
+            try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><sequence><item type="episode" id="e1" optional="1"/></sequence></container>"#)
+        }
+        #expect(throws: ContainerFileError.invalidValue(element: "year", attribute: "inTitle", value: "TRUE")) {
+            try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><year inTitle="TRUE">1963</year></container>"#)
+        }
+        #expect(throws: ContainerFileError.invalidText(element: "year", value: "MCMLXIII")) {
+            try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><year>MCMLXIII</year></container>"#)
+        }
+        #expect(throws: ContainerFileError.invalidText(element: "year", value: " 1963")) {
+            try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><year> 1963</year></container>"#)
+        }
+        // The open vocabularies are read as given.
+        let open = try read(#"<container format="1" id="\#(id)" type="series"><title>x</title><externalRef provider="anidb" value="1"/><features><feature id="f" type="trivia"/></features><sequence><item type="special" id="e1"/></sequence></container>"#)
+        #expect(open.externalRefs == [ExternalRef(provider: Provider(rawValue: "anidb"), value: "1")])
+        #expect(open.features.first?.type == FeatureType(rawValue: "trivia"))
+        #expect(open.sequences.first?.items == [.leaf(Entry.Leaf(id: item("e1"), type: EntryType(rawValue: "special")!))])
     }
 
     @Test func containerIDsAreCheckedEverywhere() throws {
@@ -168,6 +203,7 @@ struct SmdKitTests {
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(ItemID.self, from: Data(#""""#.utf8))
         }
+        #expect(String(decoding: try JSONEncoder().encode(item("part1")), as: UTF8.self) == #""part1""#)
     }
 
     @Test func titlesAreTrimmedAndNonEmpty() throws {
@@ -180,6 +216,7 @@ struct SmdKitTests {
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(Title.self, from: Data(#""  ""#.utf8))
         }
+        #expect(String(decoding: try JSONEncoder().encode(title("Doctor Who")), as: UTF8.self) == #""Doctor Who""#)
     }
 
     @Test func entryTypesAreOpenExceptForContainer() throws {
@@ -187,11 +224,30 @@ struct SmdKitTests {
         #expect(EntryType(rawValue: "container") == nil)
         #expect(Provider(rawValue: "anidb").title == "anidb")
         #expect(Provider.tmdb.title == "TMDb")
+        #expect(Provider.known == [.tvdb, .tmdb, .imdb, .wikidata])
+        #expect([Provider.tvdb, .tmdb, .imdb, .wikidata, .thediscdb, .upc, .asin].map(\.rawValue) == ["tvdb", "tmdb", "imdb", "wikidata", "thediscdb", "upc", "asin"])
+        #expect([Provider.tvdb, .tmdb, .imdb, .wikidata, .thediscdb, .upc, .asin].map(\.title) == ["TVDB", "TMDb", "IMDb", "Wikidata", "TheDiscDb", "UPC", "ASIN"])
+        #expect([EntryType.episode, .movie, .featurette].map(\.rawValue) == ["episode", "movie", "featurette"])
+        #expect(FeatureType(rawValue: "trivia").rawValue == "trivia")
+        #expect([FeatureType.commentary, .isolatedMusic].map(\.rawValue) == ["commentary", "isolatedMusic"])
         #expect(String(decoding: try JSONEncoder().encode(EntryType.featurette), as: UTF8.self) == #""featurette""#)
         #expect(try JSONDecoder().decode(EntryType.self, from: Data(#""featurette""#.utf8)) == .featurette)
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(EntryType.self, from: Data(#""container""#.utf8))
         }
+    }
+
+    @Test func openVocabulariesEncodeAsTheirBareString() throws {
+        func json<T: Encodable>(_ value: T) throws -> String { String(decoding: try JSONEncoder().encode(value), as: UTF8.self) }
+        let id = ContainerID("0123456789abcdef")!
+        #expect(try json(id) == #""0123456789abcdef""#)
+        #expect(try json(Provider.tvdb) == #""tvdb""#)
+        #expect(try json(FeatureType.commentary) == #""commentary""#)
+        #expect(try json(ContainerType.serial) == #""serial""#)
+        #expect(try json(Exploded.allowed) == #""allowed""#)
+        let ref = ExternalRef(provider: .tvdb, value: "76107")
+        #expect(try JSONDecoder().decode(ExternalRef.self, from: JSONEncoder().encode(ref)) == ref)
+        #expect(try JSONDecoder().decode(ContainerID.self, from: Data(json(id).utf8)) == id)
     }
 
     @Test func anEntrysKindDeterminesItsFields() {
@@ -205,6 +261,30 @@ struct SmdKitTests {
         container.extras = [.ref(EntryRef(container: other, item: item("s14-talons")))]
         #expect(container.childContainerIDs == [other], "a ref into another container is not a child")
         #expect(container.itemIDs == [item("s1")], "and declares no item id")
+
+        // Children in order: every sequence in turn, then the extras.
+        let (a, b, c) = (ContainerID.mint(), ContainerID.mint(), ContainerID.mint())
+        container.sequences = [
+            Sequence(items: [.child(Entry.Child(id: item("a"), container: a))]),
+            Sequence(items: [.leaf(Entry.Leaf(id: item("e"), type: .episode)), .child(Entry.Child(id: item("b"), container: b))]),
+        ]
+        container.extras = [.child(Entry.Child(id: item("c"), container: c))]
+        #expect(container.childContainerIDs == [a, b, c])
+        #expect(container.itemIDs == [item("a"), item("b"), item("c"), item("e")])
+    }
+
+    @Test func itemsAreSpelledAsTheSidecarSpellsThem() {
+        let child = ContainerID("0123456789abcdef")!
+        var container = Container(type: .series, title: title("T"))
+        container.sequences = [Sequence(items: [
+            .leaf(Entry.Leaf(id: item("e1"), type: .episode, optional: true)),
+            .child(Entry.Child(id: item("s1"), container: child, optional: true)),
+            .ref(EntryRef(item: item("e1"))),
+        ])]
+        let text = String(decoding: ContainerFile.data(for: container), as: UTF8.self)
+        #expect(text.contains(#"<item type="episode" id="e1" optional="true"/>"#))
+        #expect(text.contains(#"<item type="container" id="s1" optional="true" container="0123456789abcdef"/>"#))
+        #expect(text.contains(#"<item ref="e1"/>"#))
     }
 
     @Test func everyWrittenContainerReadsBack() throws {
@@ -227,6 +307,23 @@ struct SmdKitTests {
         #expect(read.sequences.first?.id == "ab")
         #expect(read.sequences.first?.items == [.leaf(Entry.Leaf(id: item("p1"), type: .episode, title: "ab"))], "an outline of nothing but U+0001 reads as none")
         #expect(read.extrasAnchor == "ab")
+    }
+
+    @Test func aRoundTripDriftsOnlyAsStated() throws {
+        var container = Container(type: .season, title: title("T"), outline: "one\r\ntwo\rthree")
+        container.yearInTitle = true
+        container.defaultAlternative = "broadcast"
+        container.typeLabel = ""
+        container.sequences = [Sequence(id: "a\tb\r\nc", items: [.leaf(Entry.Leaf(id: item("e1"), type: .episode, title: "x", outline: ""))])]
+        container.features = [Feature(id: "a\nb", type: .commentary)]
+        let read = try ContainerFile.container(from: ContainerFile.data(for: container))
+        #expect(read.outline == "one\ntwo\nthree", "a carriage return, alone or before a line feed, reads as a line feed")
+        #expect(read.yearInTitle == false, "yearInTitle without a year reads as false")
+        #expect(read.defaultAlternative == nil, "a default without alternatives reads as none")
+        #expect(read.typeLabel == nil, "an empty optional text reads as none")
+        #expect(read.sequences.first?.items.first == .leaf(Entry.Leaf(id: item("e1"), type: .episode, title: "x")))
+        #expect(read.sequences.first?.id == "a b c", "a tab in an attribute reads as a space, and a carriage return and line feed as one")
+        #expect(read.features.first?.id == "a b", "and so does a line feed")
     }
 
     @Test func textIsTrimmedOnRead() throws {

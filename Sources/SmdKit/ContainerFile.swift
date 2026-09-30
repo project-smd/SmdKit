@@ -23,8 +23,9 @@ import FoundationXML
 ///
 /// Every container can be written and read back. The values the reader would refuse — an
 /// unchecked id, an empty title, a child without a container — cannot be built, so the writer does
-/// not check; and it drops from every other string the characters XML 1.0 cannot carry, since no
-/// escape can write them.
+/// not check. It drops from every other string the characters XML 1.0 cannot carry, since no
+/// escape can write them, and folds line ends and attribute whitespace itself (see `XMLText`), so a
+/// value reads back the same whichever platform wrote it.
 public enum ContainerFile {
     /// The format this reads and writes. A file with a higher number is refused rather than
     /// half-read.
@@ -314,11 +315,11 @@ public enum ContainerFileError: Error, Equatable, LocalizedError {
 private extension XMLElement {
     func set(_ name: String, _ value: String?) {
         guard let value else { return }
-        addAttribute(XMLNode.attribute(withName: name, stringValue: XMLText.carried(value)) as! XMLNode)
+        addAttribute(XMLNode.attribute(withName: name, stringValue: XMLText.attribute(value)) as! XMLNode)
     }
 
     func addText(_ name: String, _ value: String?) {
-        guard let value = value.map(XMLText.carried), !value.isEmpty else { return }
+        guard let value = value.map(XMLText.text), !value.isEmpty else { return }
         addChild(XMLElement(name: name, stringValue: value))
     }
 

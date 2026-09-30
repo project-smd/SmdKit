@@ -114,7 +114,7 @@ value equal to its raw value, so a kind reads the same in JSON as in the contain
 - **WHEN** `EntryType.featurette` is encoded with `JSONEncoder`
 - **THEN** the output is the JSON string `"featurette"`, and decoding it yields `EntryType.featurette`
 
-Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`entryTypesAreOpenExceptForContainer`). Only the entry type's encoding is measured.
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`entryTypesAreOpenExceptForContainer`, `openVocabulariesEncodeAsTheirBareString`).
 
 ### Requirement: The display title carries the year only when the year is part of the name
 `Container.displayTitle` SHALL be the title followed by a space and the year in parentheses when

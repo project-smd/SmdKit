@@ -73,7 +73,7 @@ references. The document SHALL NOT contain `<presentation>` elements or `smd` at
 - **WHEN** an extra is a ref to item `s14-talons` of the container with id `0b9e8d7c6f5a4b3c`
 - **THEN** the item is written as `<item ref="0b9e8d7c6f5a4b3c#s14-talons"/>`
 
-Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`containerSurvivesTheFile`, `childrenAreNamedByIdentity`).
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`containerSurvivesTheFile`, `childrenAreNamedByIdentity`, `itemsAreSpelledAsTheSidecarSpellsThem`).
 
 ### Requirement: A written container reads back equal
 `ContainerFile.container(from: ContainerFile.data(for: c))` SHALL equal `c` when every string in
@@ -83,15 +83,27 @@ when every optional text field is either nil or non-empty with no leading or tra
 when `yearInTitle` is true only with a year; and when a default alternative is set only with
 alternatives. Outside those conditions the value SHALL still be read back, per "Every written
 container can be read back", but it comes back different: an empty optional text as nil, text with
-surrounding whitespace trimmed, a carriage return and line feed as a line feed, a tab or line break
-in an attribute as a space, a character XML 1.0 cannot carry removed, `yearInTitle` without a year
-as false, and a default without alternatives as nil.
+surrounding whitespace trimmed, a carriage return (alone or before a line feed) as a line feed, a
+tab or line break in an attribute as a space, with a carriage return and line feed as one space, a
+character XML 1.0 cannot carry removed, `yearInTitle` without a year as false, and a default without
+alternatives as nil. The writer SHALL fold the carriage returns, and the tabs and line breaks in
+attributes, itself rather than leave them to the serialiser, so each value reads back the same on
+every platform: Darwin's serialiser writes those characters as themselves and the reader folds
+them, while Linux's writes character references that would carry them through unchanged.
 
 #### Scenario: the worked example
 - **WHEN** a serial with three alternatives, two features, three sequences including one of refs, an extras anchor and a cross-container ref is written and read back with its own id expected
 - **THEN** the value read equals the value written
 
-Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`containerSurvivesTheFile`, `childrenAreNamedByIdentity`, `everyWrittenContainerReadsBack`).
+#### Scenario: line ends in text
+- **WHEN** a container whose outline is `one`, a carriage return and line feed, `two`, a carriage return and `three` is written and read back
+- **THEN** the outline read is `one`, a line feed, `two`, a line feed and `three`
+
+#### Scenario: whitespace in an attribute
+- **WHEN** a sequence whose id is `a`, a tab, `b`, a carriage return and line feed, and `c` is written and read back
+- **THEN** the sequence id read is `a b c`
+
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`containerSurvivesTheFile`, `childrenAreNamedByIdentity`, `everyWrittenContainerReadsBack`, `aRoundTripDriftsOnlyAsStated`).
 
 ### Requirement: Text is trimmed on read
 The reader SHALL trim leading and trailing whitespace and newlines from the text of every element
@@ -103,7 +115,7 @@ SHALL NOT be trimmed, so a year written with surrounding whitespace throws `inva
 - **WHEN** a container whose outline has a leading and a trailing space is written and read back
 - **THEN** the outline read has neither space
 
-Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`textIsTrimmedOnRead`). That a year is not trimmed is not yet measured.
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`textIsTrimmedOnRead`, `fileRefusesWhatItCannotRead`).
 
 ### Requirement: The reader refuses a document that is not a well-formed container
 `ContainerFile.container(from:expecting:)` SHALL first check well-formedness with the event parser
