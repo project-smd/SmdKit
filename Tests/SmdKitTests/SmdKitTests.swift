@@ -113,6 +113,71 @@ struct SmdKitTests {
         #expect(String(decoding: ContainerFile.data(for: container), as: UTF8.self) == expected)
     }
 
+    @Test func theFieldsAreWrittenInTheirOrder() {
+        // Every field set, given to the writer in no particular order: the document puts them in
+        // the spec's order, drops the nil and empty ones, and writes `exploded` only when it is not
+        // `never`.
+        let container = Container(
+            id: ContainerID("fedcba9876543210")!,
+            type: .series,
+            typeLabel: "Programme",
+            title: title("Doctor Who"),
+            year: 1963,
+            yearInTitle: true,
+            outline: "Since 1963.",
+            externalRefs: [ExternalRef(provider: .tvdb, value: "76107")],
+            defaultAlternative: "broadcast",
+            alternatives: [Alternative(id: "broadcast", sequence: "aired", title: "Broadcast", outline: "As aired.")],
+            features: [Feature(id: "c1", type: .commentary, title: "Commentary", participants: [Participant(name: "Tom Baker")])],
+            sequences: [
+                Sequence(id: "aired", items: [.leaf(Entry.Leaf(id: item("e1"), type: .episode))]),
+                Sequence(exploded: .never),
+            ],
+            extrasAnchor: "e1",
+            extras: [.leaf(Entry.Leaf(id: item("x1"), type: .featurette))]
+        )
+        let expected = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container format="1" id="fedcba9876543210" type="series">
+            <title>Doctor Who</title>
+            <year inTitle="true">1963</year>
+            <typeLabel>Programme</typeLabel>
+            <outline>Since 1963.</outline>
+            <externalRef provider="tvdb" value="76107"/>
+            <alternatives default="broadcast">
+                <alternative id="broadcast" sequence="aired">
+                    <title>Broadcast</title>
+                    <outline>As aired.</outline>
+                </alternative>
+            </alternatives>
+            <features>
+                <feature id="c1" type="commentary">
+                    <title>Commentary</title>
+                    <participant name="Tom Baker"/>
+                </feature>
+            </features>
+            <sequence id="aired">
+                <item type="episode" id="e1"/>
+            </sequence>
+            <sequence/>
+            <extras anchor="e1">
+                <item type="featurette" id="x1"/>
+            </extras>
+        </container>
+
+        """
+        #expect(String(decoding: ContainerFile.data(for: container), as: UTF8.self) == expected)
+
+        // An anchor alone still writes the extras; nothing at all writes none of the optional
+        // elements.
+        let anchored = Container(id: ContainerID("fedcba9876543210")!, type: .movie, title: title("T"), extrasAnchor: "e1")
+        #expect(String(decoding: ContainerFile.data(for: anchored), as: UTF8.self).contains(#"<extras anchor="e1"/>"#))
+        let bare = String(decoding: ContainerFile.data(for: Container(type: .movie, typeLabel: "", title: title("T"), outline: "", defaultAlternative: "broadcast")), as: UTF8.self)
+        for element in ["<year", "<typeLabel", "<outline", "<externalRef", "<alternatives", "<features", "<sequence", "<extras"] {
+            #expect(!bare.contains(element), "\(element) is omitted when empty")
+        }
+    }
+
     @Test func fileRefusesWhatItCannotRead() throws {
         func read(_ xml: String, expecting: ContainerID? = nil) throws -> Container {
             try ContainerFile.container(from: Data(xml.utf8), expecting: expecting)
@@ -264,6 +329,15 @@ struct SmdKitTests {
         }
     }
 
+    @Test func thereAreEightContainerTypes() {
+        let names = ["series", "season", "serial", "arc", "volume", "collection", "episode", "movie"]
+        #expect(ContainerType.allCases.map(\.rawValue) == names)
+        #expect(ContainerType.allCases.map(\.title) == names.map(\.capitalized))
+        #expect(ContainerType.allCases.filter(\.hasYear) == [.series, .season, .movie])
+        #expect(ContainerType.season.hasYear)
+        #expect(!ContainerType.serial.hasYear)
+    }
+
     @Test func openVocabulariesEncodeAsTheirBareString() throws {
         func json<T: Encodable>(_ value: T) throws -> String { String(decoding: try JSONEncoder().encode(value), as: UTF8.self) }
         let id = ContainerID("0123456789abcdef")!
@@ -390,6 +464,54 @@ struct SmdKitTests {
         await #expect(throws: LocalRepositoryError.self) {
             try await repository.containers()
         }
+    }
+
+    @Test func aFileNamedForOneIdHoldingAnotherIsUnreadable() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SmdKitTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let repository = LocalRepository(root: folder)
+        let a = ContainerID("0123456789abcdef")!
+        let document = Container(id: ContainerID("fedcba9876543210")!, type: .movie, title: title("T"))
+        try await repository.save(document)
+        try FileManager.default.moveItem(at: repository.fileURL(for: document.id), to: repository.fileURL(for: a))
+        do {
+            _ = try await repository.containers()
+            Issue.record("a file named for one id holding another was read")
+        } catch LocalRepositoryError.unreadable(let url, .idMismatch(file: a, document: document.id)) {
+            #expect(url.lastPathComponent == "\(a).xml")
+        }
+    }
+
+    @Test func everyReadGoesToDisk() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SmdKitTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let repository = LocalRepository(root: folder)
+        var container = Container(type: .movie, title: title("Before"), externalRefs: [ExternalRef(provider: .tmdb, value: "1")])
+        try await repository.save(container)
+        #expect(try await repository.container(container.id)?.title == title("Before"))
+        #expect(try await repository.containers().map(\.title) == [title("Before")])
+        #expect(try await repository.containers(matching: ExternalRef(provider: .tmdb, value: "1")).count == 1)
+
+        // Replaced on disk as an editor or a git pull would, not through the repository.
+        container.title = title("After")
+        container.externalRefs = [ExternalRef(provider: .tmdb, value: "2")]
+        try ContainerFile.data(for: container).write(to: repository.fileURL(for: container.id))
+        #expect(try await repository.container(container.id)?.title == title("After"))
+        #expect(try await repository.containers().map(\.title) == [title("After")])
+        #expect(try await repository.containers(matching: ExternalRef(provider: .tmdb, value: "1")).isEmpty)
+        #expect(try await repository.containers(matching: ExternalRef(provider: .tmdb, value: "2")).count == 1)
+    }
+
+    @Test func matchingSearchesOnlyTheContainersOwnReferences() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SmdKitTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let repository = LocalRepository(root: folder)
+        try await repository.save(Self.talons)
+        // Talons' first part carries TVDB 1234 on its item, not on the container.
+        #expect(try await repository.containers(matching: ExternalRef(provider: .tvdb, value: "1234")).isEmpty)
+        // Provider and value both have to match.
+        #expect(try await repository.containers(matching: ExternalRef(provider: .tvdb, value: "Q3475469")).isEmpty)
+        #expect(try await repository.containers(matching: ExternalRef(provider: .wikidata, value: "Q3475469")) == [Self.talons])
     }
 
     @Test func aSaveNeverBreaksTheListing() async throws {

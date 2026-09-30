@@ -63,7 +63,7 @@ value is nil, and an `<alternatives>` or `<features>` with nothing in it SHALL b
 - **WHEN** a sequence with id `dvd-order` and `exploded` `allowed` is written
 - **THEN** its element is `<sequence id="dvd-order" exploded="allowed">`
 
-Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`containerSurvivesTheFile`, `childrenAreNamedByIdentity`). The order itself is not yet measured; the tests check the elements and the round trip.
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`theFieldsAreWrittenInTheirOrder`, `containerSurvivesTheFile`, `childrenAreNamedByIdentity`).
 
 ### Requirement: Items are written as the sidecar spells them, with children and refs by id
 Each entry SHALL be written as `<item>`. A ref SHALL be written with only a `ref` attribute, whose
