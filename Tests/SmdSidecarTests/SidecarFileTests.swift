@@ -180,6 +180,15 @@ struct SidecarFileTests {
         #expect(throws: SidecarFileError.unknownItem("part9")) { try SidecarFile.data(for: sidecar) }
     }
 
+    @Test func anEmptySidecarIsMalformed() {
+        // Every way into a sidecar reads the container first, so every one refuses zero bytes
+        // as the repository reader does, rather than crashing on Linux.
+        let malformed = ContainerFileError.malformed("the document is empty")
+        #expect(throws: malformed) { try SidecarFile.sidecar(from: Data()) }
+        #expect(throws: malformed) { try SidecarFile.data(for: Self.pyramids, updating: Data()) }
+        #expect(throws: malformed) { try SidecarFile.data(settingRules: nil, in: Data()) }
+    }
+
     @Test func displayNamesComeFromTheContainer() {
         let sidecar = Self.pyramids
         let presentations = sidecar.presentations["part1"]!

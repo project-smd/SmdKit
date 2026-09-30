@@ -90,7 +90,11 @@ error, such as reading a directory named `<id>.xml`, SHALL propagate as the unde
 - **WHEN** a file named for id A holds a container document with id B
 - **THEN** reading it throws `unreadable` wrapping `idMismatch(file: A, document: B)`
 
-Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`repositoryKeepsOneFilePerContainer`, `aFileNamedForOneIdHoldingAnotherIsUnreadable`).
+#### Scenario: a zero-byte file
+- **WHEN** a file named for a container id is empty and `containers()` is called
+- **THEN** the call throws `unreadable` naming that file and wrapping `malformed`
+
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`repositoryKeepsOneFilePerContainer`, `aFileNamedForOneIdHoldingAnotherIsUnreadable`, `anEmptyFileIsMalformed`).
 
 ### Requirement: Matching by external reference compares provider and value exactly
 `containers(matching:)` SHALL return, in listing order, the containers whose own `externalRefs`

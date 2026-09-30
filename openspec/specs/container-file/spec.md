@@ -125,7 +125,9 @@ SHALL NOT be trimmed, so a year written with surrounding whitespace throws `inva
 Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`textIsTrimmedOnRead`, `fileRefusesWhatItCannotRead`).
 
 ### Requirement: The reader refuses a document that is not a well-formed container
-`ContainerFile.container(from:expecting:)` SHALL first check well-formedness with the event parser
+`ContainerFile.container(from:expecting:)` SHALL throw `malformed("the document is empty")` for
+zero bytes, before either parser sees them, since on Linux the event parser calls them well-formed
+and the document parser crashes on them. It SHALL then check well-formedness with the event parser
 and throw `malformed` when it reports an error or fails, on Linux as on Darwin, so a truncated
 document is never read as the tree a recovering parser would close for it. It SHALL throw
 `notAContainer` when the root element is not `<container>`.
@@ -138,7 +140,11 @@ document is never read as the tree a recovering parser would close for it. It SH
 - **WHEN** a document rooted at `<sequence>` is read
 - **THEN** the read throws `notAContainer`
 
-Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`fileRefusesWhatItCannotRead`).
+#### Scenario: zero bytes
+- **WHEN** empty data is read, on Linux or on Darwin
+- **THEN** the read throws `malformed("the document is empty")`, and the process goes on
+
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`fileRefusesWhatItCannotRead`, `anEmptyFileIsMalformed`).
 
 ### Requirement: The reader refuses a newer format and an id it cannot trust
 The root SHALL carry an integer `format`, else `missingAttribute` or `invalidValue`; a format

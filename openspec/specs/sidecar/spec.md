@@ -75,7 +75,11 @@ attribute SHALL throw `ContainerFileError.missingAttribute` and a non-integer SH
 - **WHEN** a sidecar document has a `<rules>` element inside an `<item>` and none as a child of `<container>`
 - **THEN** the sidecar read has no rules
 
-Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aSidecarSurvivesTheFile`, `aSidecarWithRulesSurvivesTheFile`, `rulesInsideAnItemAreNotTheContainers`).
+#### Scenario: an empty sidecar
+- **WHEN** empty data is read with `SidecarFile.sidecar(from:)`, or given as the document to update or to set rules in
+- **THEN** each throws `ContainerFileError.malformed("the document is empty")`
+
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aSidecarSurvivesTheFile`, `aSidecarWithRulesSurvivesTheFile`, `rulesInsideAnItemAreNotTheContainers`, `anEmptySidecarIsMalformed`).
 
 ### Requirement: An empty presentation list is not recorded
 Reading SHALL add an entry to `presentations` only for an item with at least one `<presentation>`,
