@@ -466,6 +466,31 @@ struct SmdKitTests {
         }
     }
 
+    @Test func anEmptyFileIsMalformed() async throws {
+        // Zero bytes are a write cut short, not a document. On Linux the event parser calls them
+        // well-formed and the document parser crashes on them, so this is a crash there unless
+        // the reader refuses them first.
+        #expect(throws: ContainerFileError.malformed("the document is empty")) {
+            try ContainerFile.container(from: Data())
+        }
+
+        // And one such file in a repository is an unreadable file, not a crashed listing.
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SmdKitTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let repository = LocalRepository(root: folder)
+        let kept = Container(type: .movie, title: title("Kept"))
+        try await repository.save(kept)
+        let empty = ContainerID("0123456789abcdef")!
+        try Data().write(to: repository.fileURL(for: empty))
+        do {
+            _ = try await repository.containers()
+            Issue.record("a zero-byte file was read")
+        } catch LocalRepositoryError.unreadable(let url, .malformed) {
+            #expect(url.lastPathComponent == "\(empty).xml")
+        }
+        await #expect(throws: LocalRepositoryError.self) { try await repository.container(empty) }
+    }
+
     @Test func aFileNamedForOneIdHoldingAnotherIsUnreadable() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SmdKitTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }

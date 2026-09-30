@@ -134,6 +134,10 @@ public enum ContainerFile {
     /// Reads a container document. `expecting` is the id the file's name carries, when it has one;
     /// a document whose root disagrees with it is refused.
     public static func container(from data: Data, expecting expected: ContainerID? = nil) throws -> Container {
+        // Zero bytes before anything parses them: a write cut short, not a document. On Linux the
+        // event parser calls them well-formed and the document parser then crashes on them, so
+        // the check below cannot be the one that refuses them.
+        guard !data.isEmpty else { throw ContainerFileError.malformed("the document is empty") }
         // Well-formedness first, through the event parser. The document parser on Linux is
         // libxml2 in recovery mode: a truncated file comes back as a document with the tags
         // closed for it, which is not what was written and must not be read as if it were. The
