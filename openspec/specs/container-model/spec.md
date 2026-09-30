@@ -18,15 +18,16 @@ Documentation: [README](../../../README.md), and the proposals in
 ## Requirements
 
 ### Requirement: A container id is sixteen lowercase hex characters
-`ContainerID.init?(rawValue:)` SHALL accept a string exactly when it is sixteen characters long and
-every character is a digit `0`–`9` or a lowercase letter `a`–`f`, and SHALL return `nil` otherwise.
-It SHALL check only the shape, so an id drawn by any tool is accepted. `ContainerID.init?(_:)`
-SHALL behave the same. No public initialiser SHALL build an id without the check, and decoding a
-string that is not an id SHALL throw `DecodingError.dataCorrupted`.
+`ContainerID.init?(_:)` SHALL accept a string exactly when it is sixteen characters long and every
+character is a digit `0`–`9` or a lowercase letter `a`–`f`, and SHALL return `nil` otherwise. It
+SHALL check only the shape, so an id drawn by any tool is accepted. It SHALL be the only public
+initialiser, so no id is built without the check. `ContainerID` SHALL be `LosslessStringConvertible`,
+with `value` and `description` the string it was made from, and decoding a string that is not an id
+SHALL throw `DecodingError.dataCorrupted`.
 
 #### Scenario: a well-formed id
 - **WHEN** `ContainerID("0123456789abcdef")` is evaluated
-- **THEN** it returns an id whose `rawValue` and `description` are that string
+- **THEN** it returns an id whose `value` and `description` are that string
 
 #### Scenario: uppercase hex
 - **WHEN** `ContainerID("0123456789ABCDEF")` is evaluated
@@ -36,8 +37,8 @@ string that is not an id SHALL throw `DecodingError.dataCorrupted`.
 - **WHEN** a hyphenated UUID string is passed to `ContainerID(_:)`
 - **THEN** it returns `nil`, because it is neither sixteen characters nor hex throughout
 
-#### Scenario: the raw-value initialiser
-- **WHEN** `ContainerID(rawValue: "not-an-id")` is evaluated
+#### Scenario: fifteen characters
+- **WHEN** `ContainerID("0123456789abcde")` is evaluated
 - **THEN** it returns `nil`
 
 #### Scenario: a malformed id in JSON
@@ -53,7 +54,7 @@ created without an explicit id SHALL be given a freshly minted one.
 
 #### Scenario: a minted id is valid
 - **WHEN** `ContainerID.mint()` is called
-- **THEN** `ContainerID(minted.rawValue)` returns the same id
+- **THEN** `ContainerID(minted.value)` returns the same id
 
 #### Scenario: two containers created without ids
 - **WHEN** two containers are created with `Container(type:title:)` and no `id:`
@@ -108,7 +109,8 @@ Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`entryTypesAreOpenExceptForCon
 ### Requirement: Open vocabularies encode as their bare string
 `ContainerID`, `Provider`, `EntryType`, `FeatureType`, `ContainerType`, `Exploded` and
 `ExternalRef` SHALL be `Codable`, and each string-wrapping type SHALL encode as a single string
-value equal to its raw value, so a kind reads the same in JSON as in the container file.
+value equal to its raw value (for `ContainerID`, its `value`), so a kind reads the same in JSON as in
+the container file.
 
 #### Scenario: an entry type in JSON
 - **WHEN** `EntryType.featurette` is encoded with `JSONEncoder`
@@ -167,27 +169,29 @@ title and no external references.
 Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`anEntrysKindDeterminesItsFields`).
 
 ### Requirement: An item id is non-empty and names one item
-`ItemID.init?(rawValue:)` SHALL accept a string exactly when it is non-empty and contains no `#`,
-no tab, line feed or carriage return, and no character outside XML 1.0's `Char` production, and
-SHALL return `nil` otherwise. `ItemID` SHALL be `Hashable`, `Sendable` and `Codable`, encoding as
-its raw value, and decoding a string it would refuse SHALL throw. The `#` is refused because it
-separates the container from the item in a ref into another container. Tab and the line breaks are
-refused because an attribute holding one reads back with a space in its place.
+`ItemID.init?(_:)` SHALL accept a string exactly when it is non-empty and contains no `#`, no tab,
+line feed or carriage return, and no character outside XML 1.0's `Char` production, and SHALL return
+`nil` otherwise. It SHALL be the only public initialiser. `ItemID` SHALL be `Hashable`, `Sendable`,
+`LosslessStringConvertible` and `Codable`, with `value` and `description` the string it was made
+from, encoding as that string, and decoding a string it would refuse SHALL throw
+`DecodingError.dataCorrupted`. The `#` is refused because it separates the container from the item
+in a ref into another container. Tab and the line breaks are refused because the writer turns each
+into a space in an attribute, so an id holding one would read back as a different id.
 
 #### Scenario: a slug
-- **WHEN** `ItemID(rawValue: "part1")` is evaluated
-- **THEN** it returns an id whose `rawValue` is `part1`
+- **WHEN** `ItemID("part1")` is evaluated
+- **THEN** it returns an id whose `value` is `part1`
 
 #### Scenario: an empty id
-- **WHEN** `ItemID(rawValue: "")` is evaluated
+- **WHEN** `ItemID("")` is evaluated
 - **THEN** it returns `nil`
 
 #### Scenario: an id holding the ref separator
-- **WHEN** `ItemID(rawValue: "a#b")` is evaluated
+- **WHEN** `ItemID("a#b")` is evaluated
 - **THEN** it returns `nil`
 
 #### Scenario: an id holding a line feed
-- **WHEN** `ItemID(rawValue:)` is given `a`, a line feed and `b`
+- **WHEN** `ItemID(_:)` is given `a`, a line feed and `b`
 - **THEN** it returns `nil`
 
 Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`itemIDsNameOneItem`).

@@ -34,7 +34,7 @@ public enum ContainerFile {
     public static let fileExtension = "xml"
 
     public static func fileName(for id: ContainerID) -> String {
-        "\(id.rawValue).\(fileExtension)"
+        "\(id.value).\(fileExtension)"
     }
 
     // MARK: - Writing
@@ -42,7 +42,7 @@ public enum ContainerFile {
     public static func data(for container: Container) -> Data {
         let root = XMLElement(name: "container")
         root.set("format", String(format))
-        root.set("id", container.id.rawValue)
+        root.set("id", container.id.value)
         root.set("type", container.type.rawValue)
         if !container.listed { root.set("listed", "false") }
         root.addText("title", container.title.rawValue)
@@ -114,19 +114,19 @@ public enum ContainerFile {
         let element = XMLElement(name: "item")
         switch entry {
         case .ref(let ref):
-            element.set("ref", ref.container.map { "\($0.rawValue)#\(ref.item)" } ?? ref.item.rawValue)
+            element.set("ref", ref.container.map { "\($0.value)#\(ref.item)" } ?? ref.item.value)
         case .leaf(let leaf):
             element.set("type", leaf.type.rawValue)
-            element.set("id", leaf.id.rawValue)
+            element.set("id", leaf.id.value)
             if leaf.optional { element.set("optional", "true") }
             element.addText("title", leaf.title)
             element.addText("outline", leaf.outline)
             element.addExternalRefs(leaf.externalRefs)
         case .child(let child):
             element.set("type", "container")
-            element.set("id", child.id.rawValue)
+            element.set("id", child.id.value)
             if child.optional { element.set("optional", "true") }
-            element.set("container", child.container.rawValue)
+            element.set("container", child.container.value)
             element.addText("title", child.title)
             element.addText("outline", child.outline)
             element.addExternalRefs(child.externalRefs)
@@ -246,19 +246,19 @@ public enum ContainerFile {
             }
             let parts = ref.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
             if parts.count == 2 {
-                guard let container = ContainerID(String(parts[0])), let item = ItemID(rawValue: String(parts[1])) else {
+                guard let container = ContainerID(String(parts[0])), let item = ItemID(String(parts[1])) else {
                     throw ContainerFileError.invalidValue(element: "item", attribute: "ref", value: ref)
                 }
                 return .ref(EntryRef(container: container, item: item))
             }
-            guard let item = ItemID(rawValue: ref) else {
+            guard let item = ItemID(ref) else {
                 throw ContainerFileError.invalidValue(element: "item", attribute: "ref", value: ref)
             }
             return .ref(EntryRef(item: item))
         }
         let typeValue = try element.required("type")
         let idValue = try element.required("id")
-        guard let id = ItemID(rawValue: idValue) else {
+        guard let id = ItemID(idValue) else {
             throw ContainerFileError.invalidValue(element: "item", attribute: "id", value: idValue)
         }
         let optional = try element.bool("optional") ?? false

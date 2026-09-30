@@ -107,6 +107,13 @@ describe values the model cannot hold, and the rules exist in one place:
 A hand-written file with such an id or title stops reading. Nothing in the repository or its tests
 writes one.
 
+**Amended in implementation (#11).** `ContainerID` and `ItemID` each keep a single checked
+initialiser, `init?(_:)`, and drop `RawRepresentable` for `LosslessStringConvertible`, with the
+string in a `value` property. Two initialisers doing the same check made `ContainerID.init`
+ambiguous as a function reference. Without `RawRepresentable`, each type writes its `Codable`
+itself, decoding through the check and encoding as a bare string, as the conformance did. `Title`
+keeps both its initialisers, because they differ: one trims, the other refuses untrimmed text.
+
 ## What it leaves alone
 
 - **Cross-reference checks.** Unique item ids, an alternative naming a real sequence, a default

@@ -6,7 +6,7 @@ import Testing
 @testable import SmdKit
 
 /// An item id the test knows to be valid.
-func item(_ string: String) -> ItemID { ItemID(rawValue: string)! }
+func item(_ string: String) -> ItemID { ItemID(string)! }
 
 /// A title the test knows to be valid.
 func title(_ string: String) -> Title { Title(string)! }
@@ -172,13 +172,13 @@ struct SmdKitTests {
     }
 
     @Test func containerIDsAreCheckedEverywhere() throws {
-        #expect(ContainerID("0123456789abcdef")?.rawValue == "0123456789abcdef")
+        #expect(ContainerID("0123456789abcdef")?.value == "0123456789abcdef")
         #expect(ContainerID("0123456789abcdef")?.description == "0123456789abcdef")
         #expect(ContainerID("0123456789ABCDEF") == nil)
         #expect(ContainerID(UUID().uuidString.lowercased()) == nil)
-        #expect(ContainerID(rawValue: "not-an-id") == nil)
+        #expect(ContainerID("0123456789abcde") == nil, "fifteen characters")
         let minted = ContainerID.mint()
-        #expect(ContainerID(minted.rawValue) == minted)
+        #expect(ContainerID(minted.value) == minted)
         #expect(Container(type: .movie, title: title("A")).id != Container(type: .movie, title: title("B")).id)
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(ContainerID.self, from: Data(#""not-an-id""#.utf8))
@@ -192,13 +192,13 @@ struct SmdKitTests {
     }
 
     @Test func itemIDsNameOneItem() throws {
-        #expect(ItemID(rawValue: "part1")?.rawValue == "part1")
-        #expect(ItemID(rawValue: "") == nil)
-        #expect(ItemID(rawValue: "a#b") == nil)
-        #expect(ItemID(rawValue: "a\nb") == nil)
-        #expect(ItemID(rawValue: "a\tb") == nil)
-        #expect(ItemID(rawValue: "a\rb") == nil)
-        #expect(ItemID(rawValue: "a\u{1}b") == nil)
+        #expect(ItemID("part1")?.value == "part1")
+        #expect(ItemID("") == nil)
+        #expect(ItemID("a#b") == nil)
+        #expect(ItemID("a\nb") == nil)
+        #expect(ItemID("a\tb") == nil)
+        #expect(ItemID("a\rb") == nil)
+        #expect(ItemID("a\u{1}b") == nil)
         #expect(try JSONDecoder().decode(ItemID.self, from: Data(#""part1""#.utf8)) == item("part1"))
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(ItemID.self, from: Data(#""""#.utf8))

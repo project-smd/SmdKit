@@ -9,52 +9,76 @@ import Foundation
 /// enough to read in a ref or a file listing. Readability in a review comes from the file's title,
 /// not its name.
 ///
-/// Every initialiser checks the shape, so an id that the container file's reader would refuse
+/// The one initialiser checks the shape, so an id that the container file's reader would refuse
 /// cannot be built, and decoding one throws.
-public struct ContainerID: Hashable, Sendable, Codable, RawRepresentable, CustomStringConvertible {
-    public let rawValue: String
+public struct ContainerID: Hashable, Sendable, Codable, LosslessStringConvertible {
+    public let value: String
 
     /// The string as an id, or nil when it is not one: the shape is checked, not the provenance,
     /// so an id minted by any tool that draws sixteen hex characters is accepted.
-    public init?(rawValue: String) {
-        guard rawValue.count == 16, rawValue.unicodeScalars.allSatisfy({ ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x61 && $0.value <= 0x66) }) else {
+    public init?(_ string: String) {
+        guard string.count == 16, string.unicodeScalars.allSatisfy({ ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x61 && $0.value <= 0x66) }) else {
             return nil
         }
-        self.rawValue = rawValue
-    }
-
-    public init?(_ string: String) {
-        self.init(rawValue: string)
+        value = string
     }
 
     private init(minted: String) {
-        rawValue = minted
+        value = minted
     }
 
     public static func mint() -> ContainerID {
         ContainerID(minted: String(format: "%016llx", UInt64.random(in: .min ... .max)))
     }
 
-    public var description: String { rawValue }
+    public var description: String { value }
+
+    /// A bare string, decoded through the check, so a malformed id cannot arrive as JSON either.
+    public init(from decoder: any Decoder) throws {
+        let string = try decoder.singleValueContainer().decode(String.self)
+        guard let id = ContainerID(string) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Not a container id: \(string)"))
+        }
+        self = id
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
 }
 
 /// The id of an entry, unique within its container, and what a ref names. Non-empty, and free of
 /// the characters that would not come back from the file as written: `#`, which separates the
-/// container from the item in a ref into another container; tab and the line breaks, which an
-/// attribute reads back as spaces; and anything XML 1.0 cannot carry at all.
-public struct ItemID: Hashable, Sendable, Codable, RawRepresentable, CustomStringConvertible {
-    public let rawValue: String
+/// container from the item in a ref into another container; tab and the line breaks, which the
+/// writer turns into spaces in an attribute; and anything XML 1.0 cannot carry at all.
+public struct ItemID: Hashable, Sendable, Codable, LosslessStringConvertible {
+    public let value: String
 
-    public init?(rawValue: String) {
-        guard !rawValue.isEmpty, rawValue.unicodeScalars.allSatisfy({
+    public init?(_ string: String) {
+        guard !string.isEmpty, string.unicodeScalars.allSatisfy({
             XMLText.carries($0) && $0 != "#" && $0 != "\t" && $0 != "\n" && $0 != "\r"
         }) else {
             return nil
         }
-        self.rawValue = rawValue
+        value = string
     }
 
-    public var description: String { rawValue }
+    public var description: String { value }
+
+    /// A bare string, decoded through the check.
+    public init(from decoder: any Decoder) throws {
+        let string = try decoder.singleValueContainer().decode(String.self)
+        guard let id = ItemID(string) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Not an item id: \(string)"))
+        }
+        self = id
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
 }
 
 /// A container's title: never empty, and without whitespace at either end, because the file's

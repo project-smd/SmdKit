@@ -19,11 +19,11 @@ struct SidecarFileTests {
         container.defaultAlternative = "broadcast"
         container.features = [Feature(id: "commentary1", type: .commentary, title: "Commentary", participants: [Participant(name: "Tom Baker", role: "The Doctor")])]
         container.sequences = [Sequence(id: "parts", items: [
-            .leaf(Entry.Leaf(id: ItemID(rawValue: "part1")!, type: .episode, title: "Part One")),
-            .leaf(Entry.Leaf(id: ItemID(rawValue: "part2")!, type: .episode, title: "Part Two")),
-            .child(Entry.Child(id: ItemID(rawValue: "next")!, container: seasonID)),
+            .leaf(Entry.Leaf(id: ItemID("part1")!, type: .episode, title: "Part One")),
+            .leaf(Entry.Leaf(id: ItemID("part2")!, type: .episode, title: "Part Two")),
+            .child(Entry.Child(id: ItemID("next")!, container: seasonID)),
         ])]
-        container.extras = [.leaf(Entry.Leaf(id: ItemID(rawValue: "now-and-then")!, type: .featurette, title: "Now and Then"))]
+        container.extras = [.leaf(Entry.Leaf(id: ItemID("now-and-then")!, type: .featurette, title: "Now and Then"))]
         return Sidecar(
             container: container,
             children: [seasonID: "Next/container.smd"],
