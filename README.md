@@ -20,8 +20,11 @@ swift test
 ## What is here
 
 - `Container` and the types under it — `Sequence`, `Entry`, `Alternative`, `Feature`,
-  `ExternalRef` — are the sidecar proposal's elements as values, named as it names them.
-- `ContainerFile` reads and writes one container as XML.
+  `ExternalRef` — are the sidecar proposal's elements as values, named as it names them. What
+  the file's reader would refuse cannot be built: `ContainerID`, `ItemID` and `Title` check
+  their text where they are made, and `Entry` has one case per kind (`leaf`, `child`, `ref`),
+  each with only its own fields.
+- `ContainerFile` reads and writes one container as XML. Every container it writes reads back.
 - `ContainerDatabase` is what a client asks: every container, one by id, the ones a provider's
   id names, and save. `roots()` — what nothing holds — is derived from those.
 - `LocalRepository` is the phase 1 implementation: a folder that is a clone of the data

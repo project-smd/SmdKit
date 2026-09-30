@@ -58,8 +58,10 @@ ref with a `#` in its item cannot be built.
 
 **`Title` is a new checked type for the container's title.** `Title.init?(_:)` trims whitespace and
 newlines at both ends, the same set the reader trims, and returns nil when nothing is left or when
-the text holds a character XML 1.0 cannot carry. `Container.title` becomes a `Title`, so an empty
-or blank title cannot be built and a title reads back exactly as written.
+the text holds a character XML 1.0 cannot carry. `Title.init?(rawValue:)`, which decoding uses, accepts only text
+that is already a title, so it refuses untrimmed text rather than altering it. `Container.title`
+becomes a `Title`, so an empty or blank title cannot be built and a title reads back exactly as
+written.
 
 **`Entry` becomes an enum with one case per kind.**
 

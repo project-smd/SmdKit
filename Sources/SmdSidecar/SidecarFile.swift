@@ -30,7 +30,7 @@ public enum SidecarFile {
 
         var sidecar = Sidecar(container: container)
         for item in items(in: root) {
-            if let path = item.attribute("smd"), let child = item.attribute("container").flatMap(ContainerID.init) {
+            if let path = item.attribute("smd"), let child = item.attribute("container").flatMap({ ContainerID($0) }) {
                 sidecar.children[child] = path
             }
             guard let id = item.attribute("id") else { continue }
@@ -91,7 +91,7 @@ public enum SidecarFile {
         // created when the document lacks that too.
         for sequence in sidecar.container.sequences {
             for entry in sequence.items {
-                guard let id = entry.id, byID[id] == nil else { continue }
+                guard let id = entry.id?.rawValue, byID[id] == nil else { continue }
                 let holder = sequenceElement(in: root, id: sequence.id)
                 let element = itemElement(entry)
                 holder.addChild(element)
@@ -99,7 +99,7 @@ public enum SidecarFile {
             }
         }
         for entry in sidecar.container.extras {
-            guard let id = entry.id, byID[id] == nil else { continue }
+            guard let id = entry.id?.rawValue, byID[id] == nil else { continue }
             let holder = extrasElement(in: root)
             let element = itemElement(entry)
             holder.addChild(element)
@@ -112,7 +112,7 @@ public enum SidecarFile {
             for presentation in presentations { item.addChild(presentationElement(presentation)) }
         }
         for item in byID.values {
-            guard let child = item.attribute("container").flatMap(ContainerID.init) else { continue }
+            guard let child = item.attribute("container").flatMap({ ContainerID($0) }) else { continue }
             if let path = sidecar.children[child] {
                 item.removeAttribute(forName: "smd")
                 item.set("smd", path)
@@ -149,7 +149,7 @@ public enum SidecarFile {
 
     /// An item as `ContainerFile` spells it, for the one the document lacks.
     private static func itemElement(_ entry: Entry) -> XMLElement {
-        var container = Container(id: ContainerID.mint(), type: .series, title: "-")
+        var container = Container(id: ContainerID.mint(), type: .series, title: Title(rawValue: "-")!)
         container.sequences = [Sequence(items: [entry])]
         let document = try? XMLDocument(data: ContainerFile.data(for: container), options: [])
         let item = document?.rootElement()?.elements(forName: "sequence").first?.elements(forName: "item").first

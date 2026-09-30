@@ -52,9 +52,11 @@ Pinned by: nothing yet.
 ### Requirement: A container title is non-empty trimmed text
 `Title.init?(_:)` SHALL trim whitespace and newlines from both ends of the string it is given, and
 SHALL return `nil` when nothing is left or when the string contains a character outside XML 1.0's
-`Char` production. `Title.rawValue` SHALL be the trimmed string. `Container.title` SHALL be a
-`Title`, so a container cannot be built with an empty or blank title. `Title` SHALL be `Codable`,
-encoding as its raw value, and decoding a string it would refuse SHALL throw.
+`Char` production. `Title.rawValue` SHALL be the trimmed string. `Title.init?(rawValue:)` SHALL
+accept exactly the strings `Title.init?(_:)` returns unchanged, so it refuses untrimmed text rather
+than altering it. `Container.title` SHALL be a `Title`, so a container cannot be built with an
+empty or blank title. `Title` SHALL be `Codable`, encoding as its raw value, and decoding a string
+that `Title.init?(rawValue:)` refuses SHALL throw.
 
 #### Scenario: surrounding spaces
 - **WHEN** `Title(" Doctor Who ")` is evaluated
@@ -66,6 +68,10 @@ encoding as its raw value, and decoding a string it would refuse SHALL throw.
 
 #### Scenario: a control character
 - **WHEN** `Title` is given a string holding U+0001
+- **THEN** it returns `nil`
+
+#### Scenario: an untrimmed raw value
+- **WHEN** `Title(rawValue: " Doctor Who")` is evaluated
 - **THEN** it returns `nil`
 
 Pinned by: nothing yet.
