@@ -96,6 +96,30 @@ struct SidecarFileTests {
         #expect(read.container.title == Title("Pyramids of Mars (as I titled it)"))
     }
 
+    @Test func anUpdateRemovesFactsTheValueNoLongerHas() throws {
+        let onDisk = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container format="1" id="fedcba9876543210" type="serial">
+            <title>Pyramids of Mars</title>
+            <sequence id="parts">
+                <item type="episode" id="part1"><presentation file="Part One.mkv"/></item>
+                <item type="episode" id="part2"><presentation file="Part Two.mkv"/></item>
+                <item type="container" id="next" container="0123456789abcdef" smd="Next/container.smd"/>
+                <item type="episode" id="part5"><presentation file="Part Five.mkv"/></item>
+            </sequence>
+        </container>
+
+        """
+        var sidecar = Self.pyramids
+        sidecar.children = [:]
+        sidecar.presentations = ["part1": [Presentation(file: "Part One.mkv")]]
+        let read = try SidecarFile.sidecar(from: SidecarFile.data(for: sidecar, updating: Data(onDisk.utf8)))
+        #expect(read.presentations["part2"] == nil, "a presentation the value dropped is removed")
+        #expect(read.children.isEmpty, "and so is a child path")
+        #expect(read.presentations["part1"] == [Presentation(file: "Part One.mkv")])
+        #expect(read.presentations["part5"] == [Presentation(file: "Part Five.mkv")], "an item only the document has keeps its facts")
+    }
+
     @Test func anUpdateRefusesADifferentContainer() throws {
         let other = try SidecarFile.data(for: Sidecar(container: Container(id: ContainerID.mint(), type: .movie, title: Title("Other")!)))
         #expect(throws: ContainerFileError.self) { try SidecarFile.data(for: Self.pyramids, updating: other) }

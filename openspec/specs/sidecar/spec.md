@@ -119,22 +119,26 @@ no id to be missing. A container that has drifted from the value is left for a v
 
 Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`anUpdateChangesOnlyTheLibrarysFacts`).
 
-### Requirement: An update never removes a library fact the value no longer has
-An update SHALL leave in place the `<presentation>` elements of an item that has no entry in
-`presentations`, and the `smd` attribute of a child whose id has no entry in `children`, so a
-presentation or child path removed from the value survives in the document. This contradicts the
-documented contract that an update brings the library's facts up to the value's, and is tracked
-as a defect in https://github.com/project-smd/SmdKit/issues/8.
+### Requirement: An update removes a library fact the value no longer has
+An update SHALL remove the `<presentation>` elements of every item whose id is an item of the
+value's sequences or extras and has no entry in `presentations`, and the `smd` attribute of every
+child container item whose child the value's sequences or extras hold and has no path in
+`children`. An item the document has and the value's container does not declare SHALL keep its
+presentations and `smd` attribute, since it is drift left for a validator to report.
 
 #### Scenario: a presentation removed from the value
-- **WHEN** a document has presentations for `part1` and `part2`, and is updated with a sidecar whose `presentations` has an entry for `part1` only
-- **THEN** reading the result still yields `part2`'s presentation
+- **WHEN** a document has presentations for `part1` and `part2`, and is updated with a sidecar whose container declares both parts and whose `presentations` has an entry for `part1` only
+- **THEN** reading the result yields no presentation for `part2`
 
 #### Scenario: a child path removed from the value
-- **WHEN** a document has an `smd` path on a child, and is updated with a sidecar whose `children` is empty
-- **THEN** reading the result still yields that child's path
+- **WHEN** a document has an `smd` path on a child the sidecar's container holds, and is updated with a sidecar whose `children` is empty
+- **THEN** reading the result yields no path for that child
 
-Pinned by: nothing yet.
+#### Scenario: an item only the document has
+- **WHEN** a document has a presentation on an item the sidecar's container does not declare, and is updated
+- **THEN** reading the result still yields that item's presentation
+
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`anUpdateRemovesFactsTheValueNoLongerHas`).
 
 ### Requirement: A sidecar is written as the repository file would be
 Both modes SHALL write an XML 1.0 UTF-8 declaration without a `standalone` declaration, even when
