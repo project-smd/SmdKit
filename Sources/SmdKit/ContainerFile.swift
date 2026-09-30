@@ -24,8 +24,8 @@ import FoundationXML
 /// Every container can be written and read back. The values the reader would refuse — an
 /// unchecked id, an empty title, a child without a container — cannot be built, so the writer does
 /// not check. It drops from every other string the characters XML 1.0 cannot carry, since no
-/// escape can write them, and folds line ends and attribute whitespace itself (see `XMLText`), so a
-/// value reads back the same whichever platform wrote it.
+/// escape can write them, and folds line ends and attribute whitespace itself (see `XMLText`). The
+/// bytes are `XMLWriter`'s, not Foundation's, so they are the same whichever platform wrote them.
 public enum ContainerFile {
     /// The format this reads and writes. A file with a higher number is refused rather than
     /// half-read.
@@ -102,12 +102,7 @@ public enum ContainerFile {
             root.addChild(element)
         }
 
-        let document = XMLDocument(rootElement: root)
-        document.version = "1.0"
-        document.characterEncoding = "UTF-8"
-        var data = document.xmlData(options: [.nodePrettyPrint, .nodeCompactEmptyElement])
-        if data.last != UInt8(ascii: "\n") { data.append(UInt8(ascii: "\n")) }
-        return data
+        return XMLWriter.data(for: XMLDocument(rootElement: root))
     }
 
     private static func itemElement(_ entry: Entry) -> XMLElement {

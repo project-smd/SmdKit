@@ -86,6 +86,33 @@ struct SmdKitTests {
         #expect(read.childContainerIDs == [child.id])
     }
 
+    @Test func theFileIsTheSameBytesOnEveryPlatform() {
+        // Foundation's serialisers write this differently on Darwin and Linux; the writer's own
+        // does not, so the expectation is exact and CI, on Linux, measures it.
+        var container = Container(id: ContainerID("fedcba9876543210")!, type: .serial, typeLabel: "Story", title: title("Tom & Leela <en route>"))
+        container.externalRefs = [ExternalRef(provider: .wikidata, value: #"a"b"#)]
+        container.sequences = [Sequence(id: "parts", items: [
+            .leaf(Entry.Leaf(id: item("part1"), type: .episode, title: "Part One")),
+            .leaf(Entry.Leaf(id: item("part2"), type: .episode)),
+        ])]
+        let expected = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container format="1" id="fedcba9876543210" type="serial">
+            <title>Tom &amp; Leela &lt;en route&gt;</title>
+            <typeLabel>Story</typeLabel>
+            <externalRef provider="wikidata" value="a&quot;b"/>
+            <sequence id="parts">
+                <item type="episode" id="part1">
+                    <title>Part One</title>
+                </item>
+                <item type="episode" id="part2"/>
+            </sequence>
+        </container>
+
+        """
+        #expect(String(decoding: ContainerFile.data(for: container), as: UTF8.self) == expected)
+    }
+
     @Test func fileRefusesWhatItCannotRead() throws {
         func read(_ xml: String, expecting: ContainerID? = nil) throws -> Container {
             try ContainerFile.container(from: Data(xml.utf8), expecting: expecting)
