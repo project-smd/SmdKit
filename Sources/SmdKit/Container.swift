@@ -8,12 +8,11 @@ import Foundation
 /// specifies: minted without coordination, as a clone of the data repository has to, and short
 /// enough to read in a ref or a file listing. Readability in a review comes from the file's title,
 /// not its name.
-public struct ContainerID: Hashable, Sendable, Codable, RawRepresentable, CustomStringConvertible {
-    public let rawValue: String
-
-    public init(rawValue: String) {
-        self.rawValue = rawValue
-    }
+///
+/// The one initialiser checks the shape, so an id that the container file's reader would refuse
+/// cannot be built, and decoding one throws.
+public struct ContainerID: Hashable, Sendable, Codable, LosslessStringConvertible {
+    public let value: String
 
     /// The string as an id, or nil when it is not one: the shape is checked, not the provenance,
     /// so an id minted by any tool that draws sixteen hex characters is accepted.
@@ -21,14 +20,134 @@ public struct ContainerID: Hashable, Sendable, Codable, RawRepresentable, Custom
         guard string.count == 16, string.unicodeScalars.allSatisfy({ ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x61 && $0.value <= 0x66) }) else {
             return nil
         }
-        self.init(rawValue: string)
+        value = string
+    }
+
+    private init(minted: String) {
+        value = minted
     }
 
     public static func mint() -> ContainerID {
-        ContainerID(rawValue: String(format: "%016llx", UInt64.random(in: .min ... .max)))
+        ContainerID(minted: String(format: "%016llx", UInt64.random(in: .min ... .max)))
+    }
+
+    public var description: String { value }
+
+    /// A bare string, decoded through the check, so a malformed id cannot arrive as JSON either.
+    public init(from decoder: any Decoder) throws {
+        let string = try decoder.singleValueContainer().decode(String.self)
+        guard let id = ContainerID(string) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Not a container id: \(string)"))
+        }
+        self = id
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
+/// The id of an entry, unique within its container, and what a ref names. Non-empty, and free of
+/// the characters that would not come back from the file as written: `#`, which separates the
+/// container from the item in a ref into another container; tab and the line breaks, which the
+/// writer turns into spaces in an attribute; and anything XML 1.0 cannot carry at all.
+public struct ItemID: Hashable, Sendable, Codable, LosslessStringConvertible {
+    public let value: String
+
+    public init?(_ string: String) {
+        guard !string.isEmpty, string.unicodeScalars.allSatisfy({
+            XMLText.carries($0) && $0 != "#" && $0 != "\t" && $0 != "\n" && $0 != "\r"
+        }) else {
+            return nil
+        }
+        value = string
+    }
+
+    public var description: String { value }
+
+    /// A bare string, decoded through the check.
+    public init(from decoder: any Decoder) throws {
+        let string = try decoder.singleValueContainer().decode(String.self)
+        guard let id = ItemID(string) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Not an item id: \(string)"))
+        }
+        self = id
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
+    }
+}
+
+/// A container's title: never empty, and without whitespace at either end, because the file's
+/// reader trims it and a title must read back as it was written.
+public struct Title: Hashable, Sendable, Codable, RawRepresentable, CustomStringConvertible {
+    public let rawValue: String
+
+    /// The string as a title only when it already is one: trimmed, non-empty, and carried by XML.
+    /// Decoding goes through this, so text a title would have to change to hold is refused.
+    public init?(rawValue: String) {
+        guard !rawValue.isEmpty,
+              rawValue.trimmingCharacters(in: .whitespacesAndNewlines) == rawValue,
+              rawValue.unicodeScalars.allSatisfy(XMLText.carries)
+        else {
+            return nil
+        }
+        self.rawValue = rawValue
+    }
+
+    /// The string, trimmed, as a title; nil when nothing is left or XML cannot carry it.
+    public init?(_ string: String) {
+        self.init(rawValue: string.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     public var description: String { rawValue }
+}
+
+/// What XML 1.0 can carry: its `Char` production. Anything else cannot be written in a document,
+/// escaped or not, and a document holding it is not well-formed.
+enum XMLText {
+    static func carries(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x9, 0xA, 0xD, 0x20...0xD7FF, 0xE000...0xFFFD, 0x10000...0x10FFFF: true
+        default: false
+        }
+    }
+
+    /// Text as the writer writes it: without the characters XML 1.0 cannot carry, and with a
+    /// carriage return, alone or before a line feed, as a line feed.
+    ///
+    /// The writer folds line ends itself because the platforms' serialisers disagree: Darwin
+    /// writes a carriage return as itself, which the reader's end-of-line handling folds, while
+    /// Linux writes it as a character reference, which survives. A value has to read back the
+    /// same whichever platform wrote it.
+    static func text(_ string: String) -> String {
+        guard string.unicodeScalars.contains(where: { !carries($0) || $0 == "\r" }) else { return string }
+        var result = String.UnicodeScalarView()
+        var afterReturn = false
+        for scalar in string.unicodeScalars where carries(scalar) {
+            if scalar == "\r" {
+                result.append("\n")
+            } else if !(scalar == "\n" && afterReturn) {
+                result.append(scalar)
+            }
+            afterReturn = scalar == "\r"
+        }
+        return String(result)
+    }
+
+    /// An attribute value as the writer writes it: as `text(_:)`, then with each tab and line
+    /// feed as a space — what the reader's attribute normalisation makes of them on Darwin, and
+    /// what Linux's character references would otherwise carry through unchanged.
+    static func attribute(_ string: String) -> String {
+        let text = text(string)
+        guard text.unicodeScalars.contains(where: { $0 == "\t" || $0 == "\n" }) else { return text }
+        var result = String.UnicodeScalarView()
+        result.append(contentsOf: text.unicodeScalars.map { $0 == "\t" || $0 == "\n" ? " " : $0 })
+        return String(result)
+    }
 }
 
 /// What a container is, from the sidecar's `type` attribute. The label shown for it is separate
@@ -114,7 +233,7 @@ public struct Container: Identifiable, Hashable, Sendable {
     public var type: ContainerType
     /// What to call the type: "Story", "Season", "Volume". Nil means the type's own name.
     public var typeLabel: String?
-    public var title: String
+    public var title: Title
     /// The year a series began, a season aired or a film was released, for the types that have
     /// one (`ContainerType.hasYear`). Nil elsewhere.
     public var year: Int?
@@ -139,7 +258,7 @@ public struct Container: Identifiable, Hashable, Sendable {
         id: ContainerID = .mint(),
         type: ContainerType,
         typeLabel: String? = nil,
-        title: String,
+        title: Title,
         year: Int? = nil,
         yearInTitle: Bool = false,
         outline: String? = nil,
@@ -171,16 +290,18 @@ public struct Container: Identifiable, Hashable, Sendable {
 
     /// The title with the year after it when `yearInTitle` says so and there is one.
     public var displayTitle: String {
-        if yearInTitle, let year { "\(title) (\(year))" } else { title }
+        if yearInTitle, let year { "\(title) (\(year))" } else { title.rawValue }
     }
 
     /// The containers this one holds, in the order its sequences and extras list them.
     public var childContainerIDs: [ContainerID] {
-        (sequences.flatMap(\.items) + extras).compactMap(\.container)
+        (sequences.flatMap(\.items) + extras).compactMap {
+            if case .child(let child) = $0 { child.container } else { nil }
+        }
     }
 
     /// Every item id declared here, sequences and extras together. Refs declare none.
-    public var itemIDs: Set<String> {
+    public var itemIDs: Set<ItemID> {
         Set((sequences.flatMap(\.items) + extras).compactMap(\.id))
     }
 }
@@ -258,68 +379,95 @@ public enum Exploded: String, CaseIterable, Sendable, Codable {
     case never, allowed, preferred
 }
 
-/// The sidecar's `<item>`: an episode, a film, a featurette, a child container, or a ref to an
-/// item declared elsewhere. Which of those it is determines which fields are set; the container
-/// file's reader and the validator check the combination.
-public struct Entry: Hashable, Sendable {
+/// The sidecar's `<item>`, one case per kind, each carrying only the fields that kind has: so a
+/// child always names a container, a leaf never does, and a ref has no id of its own.
+public enum Entry: Hashable, Sendable {
+    /// An episode, a film, a featurette: anything that holds nothing.
+    case leaf(Leaf)
+    /// A child container, named by its id.
+    case child(Child)
+    /// An item declared elsewhere, in this container or another.
+    case ref(EntryRef)
+
     /// The id, unique within the container. A ref has none.
-    public var id: String?
-    /// Nil on a ref, which takes its type from what it names.
-    public var type: EntryType?
-    public var optional: Bool
-    /// A title and outline only when no provider has one for it.
-    public var title: String?
-    public var outline: String?
-    /// The child container, when `type` is `.container`.
-    public var container: ContainerID?
-    /// What a ref names.
-    public var ref: EntryRef?
-    public var externalRefs: [ExternalRef]
-
-    public init(
-        id: String,
-        type: EntryType,
-        optional: Bool = false,
-        title: String? = nil,
-        outline: String? = nil,
-        container: ContainerID? = nil,
-        externalRefs: [ExternalRef] = []
-    ) {
-        self.id = id
-        self.type = type
-        self.optional = optional
-        self.title = title
-        self.outline = outline
-        self.container = container
-        self.ref = nil
-        self.externalRefs = externalRefs
+    public var id: ItemID? {
+        switch self {
+        case .leaf(let leaf): leaf.id
+        case .child(let child): child.id
+        case .ref: nil
+        }
     }
 
-    public init(ref: EntryRef) {
-        self.id = nil
-        self.type = nil
-        self.optional = false
-        self.ref = ref
-        self.externalRefs = []
+    public struct Leaf: Hashable, Sendable {
+        public var id: ItemID
+        public var type: EntryType
+        public var optional: Bool
+        /// A title and outline only when no provider has one for it.
+        public var title: String?
+        public var outline: String?
+        public var externalRefs: [ExternalRef]
+
+        public init(
+            id: ItemID,
+            type: EntryType,
+            optional: Bool = false,
+            title: String? = nil,
+            outline: String? = nil,
+            externalRefs: [ExternalRef] = []
+        ) {
+            self.id = id
+            self.type = type
+            self.optional = optional
+            self.title = title
+            self.outline = outline
+            self.externalRefs = externalRefs
+        }
     }
 
-    /// A child container item, named for the child so the parent reads on its own.
-    public static func child(_ container: Container, id: String) -> Entry {
-        Entry(id: id, type: .container, container: container.id)
+    public struct Child: Hashable, Sendable {
+        public var id: ItemID
+        public var container: ContainerID
+        public var optional: Bool
+        /// A title and outline only when no provider has one for it.
+        public var title: String?
+        public var outline: String?
+        public var externalRefs: [ExternalRef]
+
+        public init(
+            id: ItemID,
+            container: ContainerID,
+            optional: Bool = false,
+            title: String? = nil,
+            outline: String? = nil,
+            externalRefs: [ExternalRef] = []
+        ) {
+            self.id = id
+            self.container = container
+            self.optional = optional
+            self.title = title
+            self.outline = outline
+            self.externalRefs = externalRefs
+        }
     }
 }
 
+/// What a leaf is. Open, like a provider, except that it is never `container`: a child container
+/// is an entry of its own kind, `Entry.child`, and not a leaf with that type.
 public struct EntryType: Hashable, Sendable, Codable, RawRepresentable, CustomStringConvertible {
     public let rawValue: String
 
-    public init(rawValue: String) {
+    public init?(rawValue: String) {
+        guard rawValue != "container" else { return nil }
         self.rawValue = rawValue
     }
 
-    public static let episode = EntryType(rawValue: "episode")
-    public static let movie = EntryType(rawValue: "movie")
-    public static let container = EntryType(rawValue: "container")
-    public static let featurette = EntryType(rawValue: "featurette")
+    private init(named: String) {
+        rawValue = named
+    }
+
+    public static let episode = EntryType(named: "episode")
+    public static let movie = EntryType(named: "movie")
+    public static let featurette = EntryType(named: "featurette")
 
     public var description: String { rawValue }
 }
@@ -327,9 +475,9 @@ public struct EntryType: Hashable, Sendable, Codable, RawRepresentable, CustomSt
 /// An item in another sequence of the same container, or, with a container id, in any container.
 public struct EntryRef: Hashable, Sendable {
     public var container: ContainerID?
-    public var item: String
+    public var item: ItemID
 
-    public init(container: ContainerID? = nil, item: String) {
+    public init(container: ContainerID? = nil, item: ItemID) {
         self.container = container
         self.item = item
     }

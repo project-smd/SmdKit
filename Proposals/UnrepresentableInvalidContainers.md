@@ -58,8 +58,10 @@ ref with a `#` in its item cannot be built.
 
 **`Title` is a new checked type for the container's title.** `Title.init?(_:)` trims whitespace and
 newlines at both ends, the same set the reader trims, and returns nil when nothing is left or when
-the text holds a character XML 1.0 cannot carry. `Container.title` becomes a `Title`, so an empty
-or blank title cannot be built and a title reads back exactly as written.
+the text holds a character XML 1.0 cannot carry. `Title.init?(rawValue:)`, which decoding uses, accepts only text
+that is already a title, so it refuses untrimmed text rather than altering it. `Container.title`
+becomes a `Title`, so an empty or blank title cannot be built and a title reads back exactly as
+written.
 
 **`Entry` becomes an enum with one case per kind.**
 
@@ -104,6 +106,13 @@ describe values the model cannot hold, and the rules exist in one place:
 
 A hand-written file with such an id or title stops reading. Nothing in the repository or its tests
 writes one.
+
+**Amended in implementation (#11).** `ContainerID` and `ItemID` each keep a single checked
+initialiser, `init?(_:)`, and drop `RawRepresentable` for `LosslessStringConvertible`, with the
+string in a `value` property. Two initialisers doing the same check made `ContainerID.init`
+ambiguous as a function reference. Without `RawRepresentable`, each type writes its `Codable`
+itself, decoding through the check and encoding as a bare string, as the conformance did. `Title`
+keeps both its initialisers, because they differ: one trims, the other refuses untrimmed text.
 
 ## What it leaves alone
 

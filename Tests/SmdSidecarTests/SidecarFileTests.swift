@@ -11,7 +11,7 @@ struct SidecarFileTests {
 
     /// A serial with two cuts, a commentary, three parts and an extra, as a library holds it.
     static let pyramids: Sidecar = {
-        var container = Container(id: ContainerID("fedcba9876543210")!, type: .serial, typeLabel: "Story", title: "Pyramids of Mars")
+        var container = Container(id: ContainerID("fedcba9876543210")!, type: .serial, typeLabel: "Story", title: Title("Pyramids of Mars")!)
         container.alternatives = [
             Alternative(id: "broadcast", sequence: "parts", title: "Broadcast version"),
             Alternative(id: "se", sequence: "parts", title: "Updated special effects"),
@@ -19,11 +19,11 @@ struct SidecarFileTests {
         container.defaultAlternative = "broadcast"
         container.features = [Feature(id: "commentary1", type: .commentary, title: "Commentary", participants: [Participant(name: "Tom Baker", role: "The Doctor")])]
         container.sequences = [Sequence(id: "parts", items: [
-            Entry(id: "part1", type: .episode, title: "Part One"),
-            Entry(id: "part2", type: .episode, title: "Part Two"),
-            Entry(id: "next", type: .container, container: seasonID),
+            .leaf(Entry.Leaf(id: ItemID("part1")!, type: .episode, title: "Part One")),
+            .leaf(Entry.Leaf(id: ItemID("part2")!, type: .episode, title: "Part Two")),
+            .child(Entry.Child(id: ItemID("next")!, container: seasonID)),
         ])]
-        container.extras = [Entry(id: "now-and-then", type: .featurette, title: "Now and Then")]
+        container.extras = [.leaf(Entry.Leaf(id: ItemID("now-and-then")!, type: .featurette, title: "Now and Then"))]
         return Sidecar(
             container: container,
             children: [seasonID: "Next/container.smd"],
@@ -93,11 +93,11 @@ struct SidecarFileTests {
         let read = try SidecarFile.sidecar(from: updated)
         #expect(read.presentations == sidecar.presentations)
         #expect(read.children == sidecar.children)
-        #expect(read.container.title == "Pyramids of Mars (as I titled it)")
+        #expect(read.container.title == Title("Pyramids of Mars (as I titled it)"))
     }
 
     @Test func anUpdateRefusesADifferentContainer() throws {
-        let other = try SidecarFile.data(for: Sidecar(container: Container(id: ContainerID.mint(), type: .movie, title: "Other")))
+        let other = try SidecarFile.data(for: Sidecar(container: Container(id: ContainerID.mint(), type: .movie, title: Title("Other")!)))
         #expect(throws: ContainerFileError.self) { try SidecarFile.data(for: Self.pyramids, updating: other) }
     }
 

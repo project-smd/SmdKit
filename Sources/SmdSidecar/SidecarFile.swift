@@ -91,7 +91,7 @@ public enum SidecarFile {
         // created when the document lacks that too.
         for sequence in sidecar.container.sequences {
             for entry in sequence.items {
-                guard let id = entry.id, byID[id] == nil else { continue }
+                guard let id = entry.id?.value, byID[id] == nil else { continue }
                 let holder = sequenceElement(in: root, id: sequence.id)
                 let element = itemElement(entry)
                 holder.addChild(element)
@@ -99,7 +99,7 @@ public enum SidecarFile {
             }
         }
         for entry in sidecar.container.extras {
-            guard let id = entry.id, byID[id] == nil else { continue }
+            guard let id = entry.id?.value, byID[id] == nil else { continue }
             let holder = extrasElement(in: root)
             let element = itemElement(entry)
             holder.addChild(element)
@@ -149,7 +149,7 @@ public enum SidecarFile {
 
     /// An item as `ContainerFile` spells it, for the one the document lacks.
     private static func itemElement(_ entry: Entry) -> XMLElement {
-        var container = Container(id: ContainerID.mint(), type: .series, title: "-")
+        var container = Container(id: ContainerID.mint(), type: .series, title: Title(rawValue: "-")!)
         container.sequences = [Sequence(items: [entry])]
         let document = try? XMLDocument(data: ContainerFile.data(for: container), options: [])
         let item = document?.rootElement()?.elements(forName: "sequence").first?.elements(forName: "item").first

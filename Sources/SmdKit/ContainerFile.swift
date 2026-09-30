@@ -20,6 +20,12 @@ import FoundationXML
 /// The id is both the file's name and its root attribute. That is the format's usual trade —
 /// duplicate for legibility, verify mechanically — and the reader refuses a file whose two
 /// disagree.
+///
+/// Every container can be written and read back. The values the reader would refuse — an
+/// unchecked id, an empty title, a child without a container — cannot be built, so the writer does
+/// not check. It drops from every other string the characters XML 1.0 cannot carry, since no
+/// escape can write them, and folds line ends and attribute whitespace itself (see `XMLText`), so a
+/// value reads back the same whichever platform wrote it.
 public enum ContainerFile {
     /// The format this reads and writes. A file with a higher number is refused rather than
     /// half-read.
@@ -28,7 +34,7 @@ public enum ContainerFile {
     public static let fileExtension = "xml"
 
     public static func fileName(for id: ContainerID) -> String {
-        "\(id.rawValue).\(fileExtension)"
+        "\(id.value).\(fileExtension)"
     }
 
     // MARK: - Writing
@@ -36,10 +42,10 @@ public enum ContainerFile {
     public static func data(for container: Container) -> Data {
         let root = XMLElement(name: "container")
         root.set("format", String(format))
-        root.set("id", container.id.rawValue)
+        root.set("id", container.id.value)
         root.set("type", container.type.rawValue)
         if !container.listed { root.set("listed", "false") }
-        root.addText("title", container.title)
+        root.addText("title", container.title.rawValue)
         if let year = container.year {
             let element = XMLElement(name: "year", stringValue: String(year))
             if container.yearInTitle { element.set("inTitle", "true") }
@@ -104,19 +110,27 @@ public enum ContainerFile {
         return data
     }
 
-    private static func itemElement(_ item: Entry) -> XMLElement {
+    private static func itemElement(_ entry: Entry) -> XMLElement {
         let element = XMLElement(name: "item")
-        if let ref = item.ref {
-            element.set("ref", ref.container.map { "\($0.rawValue)#\(ref.item)" } ?? ref.item)
-            return element
+        switch entry {
+        case .ref(let ref):
+            element.set("ref", ref.container.map { "\($0.value)#\(ref.item)" } ?? ref.item.value)
+        case .leaf(let leaf):
+            element.set("type", leaf.type.rawValue)
+            element.set("id", leaf.id.value)
+            if leaf.optional { element.set("optional", "true") }
+            element.addText("title", leaf.title)
+            element.addText("outline", leaf.outline)
+            element.addExternalRefs(leaf.externalRefs)
+        case .child(let child):
+            element.set("type", "container")
+            element.set("id", child.id.value)
+            if child.optional { element.set("optional", "true") }
+            element.set("container", child.container.value)
+            element.addText("title", child.title)
+            element.addText("outline", child.outline)
+            element.addExternalRefs(child.externalRefs)
         }
-        element.set("type", item.type?.rawValue)
-        element.set("id", item.id)
-        if item.optional { element.set("optional", "true") }
-        element.set("container", item.container?.rawValue)
-        element.addText("title", item.title)
-        element.addText("outline", item.outline)
-        element.addExternalRefs(item.externalRefs)
         return element
     }
 
@@ -158,11 +172,15 @@ public enum ContainerFile {
             throw ContainerFileError.invalidValue(element: "container", attribute: "type", value: typeValue)
         }
 
+        let titleText = try root.requiredText("title")
+        guard let title = Title(titleText) else {
+            throw ContainerFileError.invalidText(element: "title", value: titleText)
+        }
         var container = Container(
             id: id,
             type: type,
             typeLabel: root.text("typeLabel"),
-            title: try root.requiredText("title"),
+            title: title,
             outline: root.text("outline"),
             listed: try root.bool("listed") ?? true,
             externalRefs: try root.externalRefs()
@@ -228,34 +246,41 @@ public enum ContainerFile {
             }
             let parts = ref.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
             if parts.count == 2 {
-                guard let container = ContainerID(String(parts[0])), !parts[1].isEmpty else {
+                guard let container = ContainerID(String(parts[0])), let item = ItemID(String(parts[1])) else {
                     throw ContainerFileError.invalidValue(element: "item", attribute: "ref", value: ref)
                 }
-                return Entry(ref: EntryRef(container: container, item: String(parts[1])))
+                return .ref(EntryRef(container: container, item: item))
             }
-            guard !ref.isEmpty else {
+            guard let item = ItemID(ref) else {
                 throw ContainerFileError.invalidValue(element: "item", attribute: "ref", value: ref)
             }
-            return Entry(ref: EntryRef(item: ref))
+            return .ref(EntryRef(item: item))
         }
-        let type = EntryType(rawValue: try element.required("type"))
-        var entry = Entry(
-            id: try element.required("id"),
-            type: type,
-            optional: try element.bool("optional") ?? false,
-            title: element.text("title"),
-            outline: element.text("outline"),
-            externalRefs: try element.externalRefs()
-        )
-        if let child = element.attribute("container") {
-            guard type == .container, let id = ContainerID(child) else {
-                throw ContainerFileError.invalidValue(element: "item", attribute: "container", value: child)
+        let typeValue = try element.required("type")
+        let idValue = try element.required("id")
+        guard let id = ItemID(idValue) else {
+            throw ContainerFileError.invalidValue(element: "item", attribute: "id", value: idValue)
+        }
+        let optional = try element.bool("optional") ?? false
+        let title = element.text("title")
+        let outline = element.text("outline")
+        let externalRefs = try element.externalRefs()
+        let childValue = element.attribute("container")
+        // `container` is the one type that is not a leaf's: it is the child case, and the only
+        // one that names a container.
+        guard let type = EntryType(rawValue: typeValue) else {
+            guard let childValue else {
+                throw ContainerFileError.missingAttribute(element: "item", attribute: "container")
             }
-            entry.container = id
-        } else if type == .container {
-            throw ContainerFileError.missingAttribute(element: "item", attribute: "container")
+            guard let child = ContainerID(childValue) else {
+                throw ContainerFileError.invalidValue(element: "item", attribute: "container", value: childValue)
+            }
+            return .child(Entry.Child(id: id, container: child, optional: optional, title: title, outline: outline, externalRefs: externalRefs))
         }
-        return entry
+        if let childValue {
+            throw ContainerFileError.invalidValue(element: "item", attribute: "container", value: childValue)
+        }
+        return .leaf(Entry.Leaf(id: id, type: type, optional: optional, title: title, outline: outline, externalRefs: externalRefs))
     }
 }
 
@@ -290,11 +315,11 @@ public enum ContainerFileError: Error, Equatable, LocalizedError {
 private extension XMLElement {
     func set(_ name: String, _ value: String?) {
         guard let value else { return }
-        addAttribute(XMLNode.attribute(withName: name, stringValue: value) as! XMLNode)
+        addAttribute(XMLNode.attribute(withName: name, stringValue: XMLText.attribute(value)) as! XMLNode)
     }
 
     func addText(_ name: String, _ value: String?) {
-        guard let value, !value.isEmpty else { return }
+        guard let value = value.map(XMLText.text), !value.isEmpty else { return }
         addChild(XMLElement(name: name, stringValue: value))
     }
 
