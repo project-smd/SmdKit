@@ -4,14 +4,14 @@
 # Rules in the sidecar
 
 Tracked by <https://github.com/project-smd/SmdKit/issues/16>. Spec deltas:
-[`openspec/changes/sidecar-rules`](../openspec/changes/sidecar-rules).
+[`openspec/changes/archive/2026-10-01-sidecar-rules`](../openspec/changes/archive/2026-10-01-sidecar-rules).
 
 ## The need
 
 A library's server decides how each ripped file is encoded from a ruleset, and a household's
 exceptions belong to containers: this serial's restored extras are kept whole, that season's
 isolated scores are never touched. media-silo's
-[layered rulesets proposal](https://github.com/media-silo/silo-server/blob/propose-layered-rulesets/Proposals/LayeredRulesets.md)
+[layered rulesets proposal](https://github.com/media-silo/silo-server/pull/47)
 puts those exceptions where the container is, in its `.smd`, as a `<rules>` element whose rules are
 tried ahead of the library's. The reason is the format's own first principle: the `.smd` beside the
 files is the truth, so a library copied to another disk, restored from backup or handed to another
@@ -46,7 +46,7 @@ from the value loses them without a word.
 `<rules>` element as XML, and `Sidecar` gains `rules: SidecarRules?`. This package does not read
 the rules inside: their language — the facts, operators and actions a rule may use — is defined by
 the server that applies them, in media-silo's
-[rulesets spec](https://github.com/media-silo/silo-server/blob/spec-rulesets/openspec/specs/rulesets/spec.md),
+[rulesets spec](https://github.com/media-silo/silo-server/pull/40),
 and a copy of it here would be a second definition to keep in step. The format defines the slot;
 the library's server defines what goes in it. `SidecarRules` checks only what the slot needs: the
 text is well-formed XML with one root element named `rules`.

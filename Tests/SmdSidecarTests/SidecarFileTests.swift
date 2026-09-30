@@ -188,4 +188,130 @@ struct SidecarFileTests {
         #expect(sidecar.displayName(of: presentations[2]) == "Updated special effects")
         #expect(Set(sidecar.files) == ["Part One - Broadcast version.mkv", "Part One - Mobile.mkv", "Part One - Updated special effects.mkv", "extras/Now and Then.mkv"])
     }
+
+    // MARK: - Rules
+
+    /// A container's rules, in the server's language; this package reads none of it.
+    static let restoration = SidecarRules(xml: """
+    <rules>
+      <!-- The restoration's extras are why the box set was bought. -->
+      <video id="restoration-extras">
+        <when fact="kind" ne="episode"/>
+        <copy/>
+      </video>
+    </rules>
+    """)!
+
+    @Test func twoSpellingsOfOneRulesElementAreEqual() throws {
+        let oneLine = SidecarRules(xml: #"<rules><!-- The restoration's extras are why the box set was bought. --><video id="restoration-extras"><when fact="kind" ne="episode"/><copy/></video></rules>"#)
+        #expect(oneLine == Self.restoration)
+        #expect(Self.restoration.xml == """
+        <rules>
+            <!-- The restoration's extras are why the box set was bought. -->
+            <video id="restoration-extras">
+                <when fact="kind" ne="episode"/>
+                <copy/>
+            </video>
+        </rules>
+        """)
+        // What is inside is kept whatever it is: this package does not know the rule language.
+        #expect(SidecarRules(xml: #"<rules format="9"><anything at="all"/></rules>"#)?.xml == #"<rules format="9">"# + "\n    " + #"<anything at="all"/>"# + "\n</rules>")
+    }
+
+    @Test func somethingThatIsNotARulesElementIsRefused() {
+        #expect(SidecarRules(xml: "<rule/>") == nil)
+        #expect(SidecarRules(xml: "<rules>") == nil)
+        #expect(SidecarRules(xml: "<rules><video></rules>") == nil)
+        #expect(SidecarRules(xml: "") == nil)
+    }
+
+    @Test func aSidecarWithRulesSurvivesTheFile() throws {
+        var sidecar = Self.pyramids
+        sidecar.rules = Self.restoration
+        let data = try SidecarFile.data(for: sidecar)
+        let text = String(decoding: data, as: UTF8.self)
+        let extras = try #require(text.range(of: "</extras>"))
+        let rules = try #require(text.range(of: "    <rules>"))
+        #expect(extras.upperBound <= rules.lowerBound, "the rules are written last, after the extras")
+        #expect(text.hasSuffix("    </rules>\n</container>\n"))
+        #expect(try SidecarFile.sidecar(from: data) == sidecar)
+        #expect(try ContainerFile.container(from: data) == sidecar.container, "the repository reader ignores the rules")
+        #expect(!String(decoding: ContainerFile.data(for: sidecar.container), as: UTF8.self).contains("<rules"), "and the repository file carries none")
+    }
+
+    @Test func rulesInsideAnItemAreNotTheContainers() throws {
+        let onDisk = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container format="1" id="fedcba9876543210" type="serial">
+            <title>Pyramids of Mars</title>
+            <sequence id="parts">
+                <item type="episode" id="part1"><rules><video><copy/></video></rules></item>
+            </sequence>
+        </container>
+
+        """
+        #expect(try SidecarFile.sidecar(from: Data(onDisk.utf8)).rules == nil)
+    }
+
+    @Test func twoRulesElementsAreRefused() {
+        let onDisk = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container format="1" id="fedcba9876543210" type="serial">
+            <title>Pyramids of Mars</title>
+            <rules/>
+            <rules/>
+        </container>
+
+        """
+        #expect(throws: SidecarFileError.multipleRules) { try SidecarFile.sidecar(from: Data(onDisk.utf8)) }
+    }
+
+    @Test func anUpdateLeavesTheRulesAsTheyStand() throws {
+        var withRules = Self.pyramids
+        withRules.rules = Self.restoration
+        let onDisk = try SidecarFile.data(for: withRules)
+
+        // A placement: a new presentation, and a value that says nothing of rules.
+        var placement = Self.pyramids
+        placement.presentations["part2"] = [Presentation(file: "Part Two.mkv")]
+        let updated = try SidecarFile.sidecar(from: SidecarFile.data(for: placement, updating: onDisk))
+        #expect(updated.rules == Self.restoration, "the rules are kept, comment and all")
+        #expect(updated.presentations["part2"] == [Presentation(file: "Part Two.mkv")])
+
+        // Nor does an update add rules the document does not have.
+        let bare = try SidecarFile.data(for: Self.pyramids)
+        #expect(try SidecarFile.sidecar(from: SidecarFile.data(for: withRules, updating: bare)).rules == nil)
+    }
+
+    @Test func settingTheRulesChangesOnlyTheRules() throws {
+        let onDisk = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container format="1" id="fedcba9876543210" type="serial">
+            <!-- Kept by hand. -->
+            <title>Pyramids of Mars</title>
+            <rules><audio><copy/></audio></rules>
+            <sequence id="parts">
+                <item type="episode" id="part1"><presentation file="Part One.mkv"/></item>
+            </sequence>
+        </container>
+
+        """
+        let before = try SidecarFile.sidecar(from: Data(onDisk.utf8))
+
+        let replaced = try SidecarFile.data(settingRules: Self.restoration, in: Data(onDisk.utf8))
+        let replacedText = String(decoding: replaced, as: UTF8.self)
+        #expect(try SidecarFile.sidecar(from: replaced).rules == Self.restoration)
+        #expect(try SidecarFile.sidecar(from: replaced).presentations == before.presentations)
+        #expect(replacedText.contains("<!-- Kept by hand. -->"))
+        #expect(try #require(replacedText.range(of: "<rules>")).lowerBound < #require(replacedText.range(of: "<sequence")).lowerBound, "replaced where they stood")
+
+        let removed = try SidecarFile.data(settingRules: nil, in: Data(onDisk.utf8))
+        var expected = before
+        expected.rules = nil
+        #expect(try SidecarFile.sidecar(from: removed) == expected)
+
+        let added = try SidecarFile.data(settingRules: Self.restoration, in: removed)
+        #expect(String(decoding: added, as: UTF8.self).hasSuffix("    </rules>\n</container>\n"), "added last when there were none")
+        #expect(try SidecarFile.sidecar(from: added).rules == Self.restoration)
+    }
 }

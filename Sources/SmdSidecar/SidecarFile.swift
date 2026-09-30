@@ -9,15 +9,17 @@ import FoundationXML
 
 /// The sidecar as a file. It is the repository file with a library's facts in it, and it is read
 /// and written that way: `ContainerFile` reads the container and writes it, and one pass over the
-/// same document reads and writes the `<presentation>` elements under each item and the `smd`
-/// path on each child. Nothing here knows how a container is spelled.
+/// same document reads and writes the `<presentation>` elements under each item, the `smd`
+/// path on each child, and the container's `<rules>`. Nothing here knows how a container is
+/// spelled, or what a rule says.
 ///
 /// Writing has two modes. **Generate** makes a document from the value. **Update** takes the
 /// document that is already on disk and changes only what a library changes — presentations, and
 /// which file a child is in — leaving comments, order and anything hand-written alone, and adding
 /// an item the document lacks at the end of its sequence. A container's own fields are not
-/// rewritten by an update; a sidecar that has drifted from the repository is the validator's to
-/// report, not the writer's to resolve.
+/// rewritten by an update, and nor are its rules, which a person writes and a placement knows
+/// nothing of; a sidecar that has drifted from the repository is the validator's to report, not
+/// the writer's to resolve.
 public enum SidecarFile {
     public static let fileName = "container.smd"
 
@@ -39,6 +41,9 @@ public enum SidecarFile {
                 sidecar.presentations[id] = presentations
             }
         }
+        let rules = root.elements(forName: "rules")
+        guard rules.count <= 1 else { throw SidecarFileError.multipleRules }
+        sidecar.rules = rules.first.map(SidecarRules.init(element:))
         return sidecar
     }
 
@@ -66,6 +71,9 @@ public enum SidecarFile {
     public static func data(for sidecar: Sidecar) throws -> Data {
         let document = try XMLDocument(data: ContainerFile.data(for: sidecar.container), options: [])
         try apply(sidecar, to: document)
+        if let rules = sidecar.rules {
+            document.rootElement()?.addChild(rules.element)
+        }
         return XMLWriter.data(for: document)
     }
 
@@ -76,6 +84,26 @@ public enum SidecarFile {
         _ = current
         let document = try XMLDocument(data: existing, options: [])
         try apply(sidecar, to: document)
+        return XMLWriter.data(for: document)
+    }
+
+    /// The document on disk with its `<rules>` replaced where they stand, added last when it has
+    /// none, or removed for nil — and nothing else changed. The one way a container's rules
+    /// change, so that filing a file never does it by accident.
+    public static func data(settingRules rules: SidecarRules?, in existing: Data) throws -> Data {
+        _ = try ContainerFile.container(from: existing)
+        let document = try XMLDocument(data: existing, options: [])
+        guard let root = document.rootElement() else { throw ContainerFileError.notAContainer }
+        let present = root.elements(forName: "rules")
+        let position = present.first.flatMap { root.children?.firstIndex(of: $0) }
+        for element in present { element.detach() }
+        if let rules {
+            if let position {
+                root.insertChild(rules.element, at: position)
+            } else {
+                root.addChild(rules.element)
+            }
+        }
         return XMLWriter.data(for: document)
     }
 
@@ -197,10 +225,13 @@ public enum SidecarFile {
 public enum SidecarFileError: Error, Equatable, LocalizedError {
     /// A presentation for an item the container does not have.
     case unknownItem(String)
+    /// Two `<rules>` elements on one container, with no answer to which applies.
+    case multipleRules
 
     public var errorDescription: String? {
         switch self {
         case .unknownItem(let id): "The container has no item \(id) to hold a presentation"
+        case .multipleRules: "The container has more than one <rules> element"
         }
     }
 }
