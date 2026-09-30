@@ -74,7 +74,7 @@ the value written.
 - **WHEN** a sidecar maps an item to an empty presentation list and is written and read back
 - **THEN** the sidecar read has no entry for that item
 
-Pinned by: nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`anEmptyPresentationListIsNotRecorded`).
 
 ### Requirement: A presentation must belong to an item the container has
 Writing, in either mode, SHALL throw `SidecarFileError.unknownItem` naming the id when

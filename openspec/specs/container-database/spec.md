@@ -57,7 +57,7 @@ seen on the next read.
 - **WHEN** a container file is replaced on disk after it was read, and the same container is read again
 - **THEN** the second read returns the file's new contents
 
-Pinned by: nothing yet.
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`everyReadGoesToDisk`).
 
 ### Requirement: A missing or empty folder is an empty database
 `containers()` SHALL return an empty list when `containers/` does not exist, and `container(_:)`
@@ -90,7 +90,7 @@ error, such as reading a directory named `<id>.xml`, SHALL propagate as the unde
 - **WHEN** a file named for id A holds a container document with id B
 - **THEN** reading it throws `unreadable` wrapping `idMismatch(file: A, document: B)`
 
-Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`repositoryKeepsOneFilePerContainer`). The id-mismatch scenario is not yet measured.
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`repositoryKeepsOneFilePerContainer`, `aFileNamedForOneIdHoldingAnotherIsUnreadable`).
 
 ### Requirement: Matching by external reference compares provider and value exactly
 `containers(matching:)` SHALL return, in listing order, the containers whose own `externalRefs`
@@ -105,4 +105,4 @@ items SHALL NOT be searched.
 - **WHEN** `containers(matching:)` is called with a TVDB reference no container carries
 - **THEN** it returns an empty list
 
-Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`repositoryKeepsOneFilePerContainer`). That items are not searched is not yet measured.
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`repositoryKeepsOneFilePerContainer`, `matchingSearchesOnlyTheContainersOwnReferences`).

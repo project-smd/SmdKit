@@ -165,6 +165,15 @@ struct SidecarFileTests {
         #expect(throws: ContainerFileError.self) { try SidecarFile.data(for: Self.pyramids, updating: other) }
     }
 
+    @Test func anEmptyPresentationListIsNotRecorded() throws {
+        var sidecar = Self.pyramids
+        sidecar.presentations["part2"] = []
+        let read = try SidecarFile.sidecar(from: SidecarFile.data(for: sidecar))
+        #expect(read.presentations["part2"] == nil)
+        #expect(read.presentations.keys.sorted() == ["now-and-then", "part1"])
+        #expect(read != sidecar, "so the value read is not the value written")
+    }
+
     @Test func aPresentationNeedsAnItemToHoldIt() {
         var sidecar = Self.pyramids
         sidecar.presentations["part9"] = [Presentation(file: "x.mkv")]

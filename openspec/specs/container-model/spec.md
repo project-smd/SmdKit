@@ -75,7 +75,7 @@ capitalised. `hasYear` SHALL be true for `series`, `season` and `movie` and fals
 - **WHEN** `ContainerType.serial.hasYear` is read
 - **THEN** it is `false`
 
-Pinned by: nothing yet.
+Pinned by: `Tests/SmdKitTests/SmdKitTests.swift` (`thereAreEightContainerTypes`).
 
 ### Requirement: Providers, entry types and feature types are open vocabularies
 `Provider`, `EntryType` and `FeatureType` SHALL each be a string wrapper, so a new provider or kind
