@@ -119,10 +119,10 @@ enum XMLText {
     /// Text as the writer writes it: without the characters XML 1.0 cannot carry, and with a
     /// carriage return, alone or before a line feed, as a line feed.
     ///
-    /// The writer folds line ends itself because the platforms' serialisers disagree: Darwin
-    /// writes a carriage return as itself, which the reader's end-of-line handling folds, while
-    /// Linux writes it as a character reference, which survives. A value has to read back the
-    /// same whichever platform wrote it.
+    /// The writer folds line ends before it writes, so the file holds the value as it reads back.
+    /// It began as the answer to the platforms' serialisers disagreeing — Darwin wrote a carriage
+    /// return as itself, which the reader folds, and Linux as a character reference, which
+    /// survives — and stays as the round trip the container-file spec states.
     static func text(_ string: String) -> String {
         guard string.unicodeScalars.contains(where: { !carries($0) || $0 == "\r" }) else { return string }
         var result = String.UnicodeScalarView()
@@ -139,8 +139,7 @@ enum XMLText {
     }
 
     /// An attribute value as the writer writes it: as `text(_:)`, then with each tab and line
-    /// feed as a space — what the reader's attribute normalisation makes of them on Darwin, and
-    /// what Linux's character references would otherwise carry through unchanged.
+    /// feed as a space, which is what the reader's attribute normalisation would make of them.
     static func attribute(_ string: String) -> String {
         let text = text(string)
         guard text.unicodeScalars.contains(where: { $0 == "\t" || $0 == "\n" }) else { return text }

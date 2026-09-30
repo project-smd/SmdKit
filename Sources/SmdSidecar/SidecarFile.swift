@@ -66,7 +66,7 @@ public enum SidecarFile {
     public static func data(for sidecar: Sidecar) throws -> Data {
         let document = try XMLDocument(data: ContainerFile.data(for: sidecar.container), options: [])
         try apply(sidecar, to: document)
-        return serialise(document)
+        return XMLWriter.data(for: document)
     }
 
     /// The document on disk, with the library's facts brought up to the value's. Refused when the
@@ -76,7 +76,7 @@ public enum SidecarFile {
         _ = current
         let document = try XMLDocument(data: existing, options: [])
         try apply(sidecar, to: document)
-        return serialise(document)
+        return XMLWriter.data(for: document)
     }
 
     private static func apply(_ sidecar: Sidecar, to document: XMLDocument) throws {
@@ -191,17 +191,6 @@ public enum SidecarFile {
     private static func items(in root: XMLElement) -> [XMLElement] {
         root.elements(forName: "sequence").flatMap { $0.elements(forName: "item") }
             + root.elements(forName: "extras").flatMap { $0.elements(forName: "item") }
-    }
-
-    private static func serialise(_ document: XMLDocument) -> Data {
-        document.version = "1.0"
-        document.characterEncoding = "UTF-8"
-        // A document parsed from data comes back marked standalone; the repository writer does
-        // not say so, and a sidecar should read as the same file.
-        document.isStandalone = false
-        var data = document.xmlData(options: [.nodePrettyPrint, .nodeCompactEmptyElement])
-        if data.last != UInt8(ascii: "\n") { data.append(UInt8(ascii: "\n")) }
-        return data
     }
 }
 

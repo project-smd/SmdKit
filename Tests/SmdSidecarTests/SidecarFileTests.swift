@@ -120,6 +120,46 @@ struct SidecarFileTests {
         #expect(read.presentations["part5"] == [Presentation(file: "Part Five.mkv")], "an item only the document has keeps its facts")
     }
 
+    @Test func aSidecarIsWrittenAsTheRepositoryFileWouldBe() throws {
+        let bare = Sidecar(container: Self.pyramids.container)
+        let repository = ContainerFile.data(for: bare.container)
+        #expect(try SidecarFile.data(for: bare) == repository)
+
+        // The same document as Linux's Foundation serialiser would write it: a declaration that
+        // says standalone, and two-space indentation. An update writes the repository's bytes.
+        let text = String(decoding: repository, as: UTF8.self)
+        let foreign = text
+            .replacingOccurrences(of: #"<?xml version="1.0" encoding="UTF-8"?>"#, with: #"<?xml version="1.0" encoding="utf-8" standalone="no"?>"#)
+            .replacingOccurrences(of: "    ", with: "  ")
+        #expect(foreign != text)
+        let updated = try SidecarFile.data(for: bare, updating: Data(foreign.utf8))
+        #expect(updated == repository)
+        #expect(!String(decoding: updated, as: UTF8.self).contains("standalone"))
+
+        let standalone = text.replacingOccurrences(of: #"encoding="UTF-8"?>"#, with: #"encoding="UTF-8" standalone="yes"?>"#)
+        #expect(try SidecarFile.data(for: bare, updating: Data(standalone.utf8)) == repository)
+    }
+
+    @Test func anUpdateKeepsMixedContentAsItStands() throws {
+        let onDisk = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container format="1" id="fedcba9876543210" type="serial">
+            <title>Pyramids of Mars</title>
+            <outline>A <em>very</em> old god</outline>
+        </container>
+
+        """
+        let updated = try SidecarFile.data(for: Sidecar(container: Self.pyramids.container), updating: Data(onDisk.utf8))
+        #expect(String(decoding: updated, as: UTF8.self).contains("<outline>A <em>very</em> old god</outline>"))
+    }
+
+    @Test func aPresentationKeepsWhitespaceInItsAttributes() throws {
+        var sidecar = Self.pyramids
+        sidecar.presentations = ["part1": [Presentation(file: "Part\tOne\nof two\r.mkv", chapters: [Chapter(index: 1, title: "A\tB")])]]
+        let data = try SidecarFile.data(for: sidecar)
+        #expect(try SidecarFile.sidecar(from: data).presentations == sidecar.presentations)
+    }
+
     @Test func anUpdateRefusesADifferentContainer() throws {
         let other = try SidecarFile.data(for: Sidecar(container: Container(id: ContainerID.mint(), type: .movie, title: Title("Other")!)))
         #expect(throws: ContainerFileError.self) { try SidecarFile.data(for: Self.pyramids, updating: other) }
