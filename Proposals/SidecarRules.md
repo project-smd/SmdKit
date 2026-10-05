@@ -5,6 +5,8 @@
 
 Tracked by <https://github.com/project-smd/SmdKit/issues/16>. Spec deltas:
 [`openspec/changes/archive/2026-10-01-sidecar-rules`](../openspec/changes/archive/2026-10-01-sidecar-rules).
+Amended by [Rules by reference](SidecarRulesReference.md): the element below now names a folder of
+version files and the version in force, and holds no rules.
 
 ## The need
 
