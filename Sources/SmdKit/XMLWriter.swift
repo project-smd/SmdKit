@@ -32,14 +32,6 @@ package enum XMLWriter {
         return Data(output.utf8)
     }
 
-    /// One element on its own, as `data(for:)` writes an element at the top of a document, with no
-    /// declaration before it and no newline after: the form a sidecar's `<rules>` is held in.
-    package static func string(for element: XMLElement) -> String {
-        var output = ""
-        write(element, depth: 0, to: &output)
-        return output
-    }
-
     private static let indent = "    "
 
     private static func write(_ node: XMLNode, depth: Int, to output: inout String) {

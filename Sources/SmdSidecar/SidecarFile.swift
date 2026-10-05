@@ -10,15 +10,15 @@ import FoundationXML
 /// The sidecar as a file. It is the repository file with a library's facts in it, and it is read
 /// and written that way: `ContainerFile` reads the container and writes it, and one pass over the
 /// same document reads and writes the `<presentation>` elements under each item, the `smd`
-/// path on each child, and the container's `<rules>`. Nothing here knows how a container is
-/// spelled, or what a rule says.
+/// path on each child, and the container's `<rules>` reference. Nothing here knows how a container
+/// is spelled, or what a rule says.
 ///
 /// Writing has two modes. **Generate** makes a document from the value. **Update** takes the
 /// document that is already on disk and changes only what a library changes — presentations, and
 /// which file a child is in — leaving comments, order and anything hand-written alone, and adding
 /// an item the document lacks at the end of its sequence. A container's own fields are not
-/// rewritten by an update, and nor are its rules, which a person writes and a placement knows
-/// nothing of; a sidecar that has drifted from the repository is the validator's to report, not
+/// rewritten by an update, and nor is which rules it uses, which a person decides and a placement
+/// knows nothing of; a sidecar that has drifted from the repository is the validator's to report, not
 /// the writer's to resolve.
 public enum SidecarFile {
     public static let fileName = "container.smd"
@@ -43,8 +43,19 @@ public enum SidecarFile {
         }
         let rules = root.elements(forName: "rules")
         guard rules.count <= 1 else { throw SidecarFileError.multipleRules }
-        sidecar.rules = rules.first.map(SidecarRules.init(element:))
+        sidecar.rules = try rules.first.map(Self.rules)
         return sidecar
+    }
+
+    /// The reference a `<rules>` element makes. One that holds rules is refused rather than read for
+    /// its attributes: the rules written inside would be dropped without a word.
+    private static func rules(_ element: XMLElement) throws -> SidecarRules {
+        guard !(element.children ?? []).contains(where: { $0.kind == .element }) else { throw SidecarFileError.inlineRules }
+        let path = try element.required("path")
+        guard !path.isEmpty else { throw ContainerFileError.invalidValue(element: "rules", attribute: "path", value: path) }
+        let version = try element.integer("version")
+        guard version >= 1 else { throw ContainerFileError.invalidValue(element: "rules", attribute: "version", value: String(version)) }
+        return SidecarRules(path: path, version: version)
     }
 
     private static func presentation(_ element: XMLElement) throws -> Presentation {
@@ -87,9 +98,9 @@ public enum SidecarFile {
         return XMLWriter.data(for: document)
     }
 
-    /// The document on disk with its `<rules>` replaced where they stand, added last when it has
-    /// none, or removed for nil — and nothing else changed. The one way a container's rules
-    /// change, so that filing a file never does it by accident.
+    /// The document on disk with its `<rules>` reference replaced where it stands, added last when it
+    /// has none, or removed for nil — and nothing else changed. The one way the rules a container
+    /// uses change, so that filing a file never does it by accident.
     public static func data(settingRules rules: SidecarRules?, in existing: Data) throws -> Data {
         _ = try ContainerFile.container(from: existing)
         let document = try XMLDocument(data: existing, options: [])
@@ -227,11 +238,14 @@ public enum SidecarFileError: Error, Equatable, LocalizedError {
     case unknownItem(String)
     /// Two `<rules>` elements on one container, with no answer to which applies.
     case multipleRules
+    /// A `<rules>` element holding rules, where it should name the version file that holds them.
+    case inlineRules
 
     public var errorDescription: String? {
         switch self {
         case .unknownItem(let id): "The container has no item \(id) to hold a presentation"
         case .multipleRules: "The container has more than one <rules> element"
+        case .inlineRules: "The container's <rules> element holds rules; it names a version file instead, as <rules path=\"rules\" version=\"1\"/>"
         }
     }
 }

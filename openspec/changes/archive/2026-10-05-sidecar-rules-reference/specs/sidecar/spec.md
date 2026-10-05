@@ -39,8 +39,8 @@ child the container holds, and no item maps to an empty list. A presentation SHA
 `<source>` SHALL require `disc` and `playlist`; a `<track>` SHALL require `feature` and read `audio`
 and `subtitle` as optional integers; a `<chapter>` SHALL require an integer `index` and a `title`; the
 container's `<rules>` SHALL require a non-empty `path` and an integer `version` of at least 1. A
-missing required attribute SHALL throw `ContainerFileError.missingAttribute` and a non-integer, or a
-`version` below 1, SHALL throw `ContainerFileError.invalidValue`.
+missing required attribute SHALL throw `ContainerFileError.missingAttribute`, and a non-integer, an
+empty `path` or a `version` below 1 SHALL throw `ContainerFileError.invalidValue`.
 
 #### Scenario: a sidecar survives the file
 - **WHEN** a sidecar with presentations of three kinds on one item, one on an extra, a child path and rules is written with `SidecarFile.data(for:)` and read back
@@ -58,7 +58,7 @@ missing required attribute SHALL throw `ContainerFileError.missingAttribute` and
 - **WHEN** a sidecar document's `<container>` has a `<rules>` element with no `path`, or with `version="0"`, or with `version="four"`
 - **THEN** reading throws `missingAttribute` for the first and `invalidValue` for the other two
 
-Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aSidecarSurvivesTheFile`, `aSidecarWithRulesSurvivesTheFile`, `rulesInsideAnItemAreNotTheContainers`, `anEmptySidecarIsMalformed`). A rules reference that names nothing is pinned by nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aSidecarSurvivesTheFile`, `aSidecarWithRulesSurvivesTheFile`, `rulesInsideAnItemAreNotTheContainers`, `anEmptySidecarIsMalformed`, `aRulesReferenceThatNamesNothingIsRefused`).
 
 ### Requirement: An update changes only the library's facts
 An update SHALL leave the existing document's comments, element order and the container's own
@@ -129,7 +129,7 @@ library's server's.
 - **WHEN** a sidecar's rules name the path `rules` and version 4
 - **THEN** their `file` is `rules/4.xml`
 
-Pinned by: nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aRulesReferenceNamesItsFile`).
 
 ### Requirement: A rules element holds no rules
 `SidecarFile.sidecar(from:)` SHALL throw `SidecarFileError.inlineRules` when the root
@@ -140,4 +140,4 @@ own files and a reader that took the attributes would drop the rules written ins
 - **WHEN** a sidecar document's `<container>` ends in a `<rules>` element holding a `<video>` element
 - **THEN** reading throws `inlineRules`
 
-Pinned by: nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`rulesWrittenInlineAreRefused`).
