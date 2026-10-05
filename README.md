@@ -32,9 +32,9 @@ swift test
 
 - `SmdSidecar`, a target of its own, is the `.smd` as a library keeps it: `Sidecar` is a
   `Container` plus which file holds each presentation of each item, where each child's
-  sidecar is, and the container's `<rules>` — carried for the server that encodes the library,
-  never read here — and `SidecarFile` reads and writes it as the repository file with those facts
-  in.
+  sidecar is, and the container's `<rules>` — which version of the rules, kept as files in a folder
+  beside the sidecar, the server that encodes the library applies; the rules themselves are never
+  read here — and `SidecarFile` reads and writes it as the repository file with those facts in.
   Writing has an update mode that changes only the library's facts in a document that is
   already on disk, leaving comments and hand-written fields alone.
 
@@ -70,7 +70,7 @@ proposal lists:
 | `<item type="container" smd="Season 14/season.smd"/>` | `<item type="container" container="<16 hex>"/>` | A child is named by identity, not by where a library put it |
 | `nfo="tvshow.nfo"` | `<externalRef provider="tvdb" value="76107"/>` | The NFO is where a library keeps the provider's id; here the id is the fact |
 | `<presentation file="…">` | absent | Which file holds a thing is a library's fact |
-| `<rules>…</rules>` | absent | How a library encodes a container's files is its own policy |
+| `<rules path="rules" version="4"/>` | absent | How a library encodes a container's files is its own policy |
 | `<item ref="behind-the-sofa#s13-pyramids"/>` | `<item ref="<16 hex>#s13-pyramids"/>` | Same form, global id |
 
 Everything else — titles, `year` (with `inTitle="true"` when the year is part of the name),

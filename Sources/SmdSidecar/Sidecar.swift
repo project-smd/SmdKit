@@ -6,8 +6,9 @@ import SmdKit
 
 /// A container as a library keeps it: the same container the repository holds, plus the facts
 /// that are the library's own — which file holds each presentation of each item, where each
-/// child container's sidecar is, and the rules the library encodes the container's files by. `StructuredContainers.md` calls the file an `.smd`; the
-/// repository file is that element with these facts taken out, and this is them put back.
+/// child container's sidecar is, and which version of the rules the library encodes the
+/// container's files by. `StructuredContainers.md` calls the file an `.smd`; the repository file is
+/// that element with these facts taken out, and this is them put back.
 public struct Sidecar: Hashable, Sendable {
     public var container: Container
     /// Each child container's sidecar, as a path relative to the folder holding this one:
@@ -15,9 +16,9 @@ public struct Sidecar: Hashable, Sendable {
     public var children: [ContainerID: String]
     /// The presentations of each item, by the item's id, in the order they are listed.
     public var presentations: [String: [Presentation]]
-    /// The container's `<rules>`, carried for the server that applies them. Authored rather than
-    /// derived, so an update leaves the document's as they stand; `SidecarFile.data(settingRules:in:)`
-    /// is how they change.
+    /// Which version of the container's rules is in force, and where the versions are, for the server
+    /// that applies them. Authored rather than derived, so an update leaves the document's as it
+    /// stands; `SidecarFile.data(settingRules:in:)` is how it changes.
     public var rules: SidecarRules?
 
     public init(container: Container, children: [ContainerID: String] = [:], presentations: [String: [Presentation]] = [:], rules: SidecarRules? = nil) {
