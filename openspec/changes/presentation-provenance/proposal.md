@@ -4,14 +4,15 @@
 # Presentation provenance
 
 ## Why
-A presentation records where it came from and how it was made: the segments of the sources it was
-made from, each by natural key, and the ruleset, container rule versions and adjusted streams that
-derived it, so that a library carries its own provenance wherever it goes. Proposal:
-[Presentation provenance](../../../Proposals/PresentationProvenance.md).
+A presentation records where it came from and how it was made: the binding it was made from, with a
+copy of the binding's segments of sources, and a transform naming every set of rules that made it.
+A person's decision about one entry is the binding's own rules, named on the item. smddb's amendment
+argues the format. Proposal: [Presentation provenance](../../../Proposals/PresentationProvenance.md).
 Tracked by <https://github.com/project-smd/SmdKit/issues/24>.
 
 ## What Changes
-- `<source scheme value from to>`, one per segment, replaces `<source disc playlist>`; the old form
-  reads as a whole `discTitle` segment.
-- `<madeBy ruleset version>` with `<layer container version digest>` and `<adjusted kind index>`.
-- `Presentation.sources` and `madeBy` replace `source`; `SourceRef` goes.
+- `<source binding>` with one `<segment scheme value from to>` per segment replaces
+  `<source disc playlist>`; `SourceRef` goes.
+- `<transform ruleset version>` with a `<layer binding|container version digest>` per set of rules.
+- An item's `<rules binding path version>`, one per binding with rules of its own, read, kept by an
+  update and set on its own.
