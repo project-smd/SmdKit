@@ -6,10 +6,10 @@
 ### Requirement: A sidecar is the container document plus presentations and child paths
 `SidecarFile.data(for:)` SHALL write the container as `ContainerFile.data(for:)` does and then add,
 under each item that has binding rules, one empty `<rules>` element per binding, in order, with its
-`binding`, `path` and `version` attributes; under each item that has presentations, one
+`binding`, `path` and `activeVersion` attributes; under each item that has presentations, one
 `<presentation>` per presentation in order, after its binding rules; on each child container item
 whose child has a path in `children`, an `smd` attribute holding that path; and, when the sidecar has
-`rules`, an empty `<rules>` element with its `path` and `version` attributes as the last child of
+`rules`, an empty `<rules>` element with its `path` and `activeVersion` attributes as the last child of
 `<container>`. A presentation SHALL be written with `alternative`, `profile` and `file` attributes,
 each only when set, then a `<source>` when it has a source, then a `<transform>` when it has one, one
 `<track feature audio subtitle>` per track mapping with `audio` and `subtitle` only when set, and one
@@ -24,8 +24,8 @@ each only when set, then a `<source>` when it has a source, then a `<transform>`
 - **THEN** the child's item carries `smd` with that path after its `container` attribute
 
 #### Scenario: a sidecar with rules
-- **WHEN** a sidecar with extras and `rules` naming the path `rules` and version 4 is written
-- **THEN** the last child of `<container>`, after the extras, is `<rules path="rules" version="4"/>`
+- **WHEN** a sidecar with extras and `rules` naming the path `rules` and active version 4 is written
+- **THEN** the last child of `<container>`, after the extras, is `<rules path="rules" activeVersion="4"/>`
 
 Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aSidecarSurvivesTheFile`, `aSidecarWithRulesSurvivesTheFile`).
 
@@ -42,9 +42,9 @@ item SHALL be read as a binding's rules, never as the container's. A sidecar wri
 SHALL require `file`; its `<source>` and `<transform>` SHALL be read as the requirements on provenance
 below describe; a `<track>` SHALL require `feature` and read `audio` and `subtitle` as optional
 integers; a `<chapter>` SHALL require an integer `index` and a `title`; the container's `<rules>`
-SHALL require a non-empty `path` and an integer `version` of at least 1. A missing required attribute
-SHALL throw `ContainerFileError.missingAttribute`, and a non-integer, an empty `path` or a `version`
-below 1 SHALL throw `ContainerFileError.invalidValue`.
+SHALL require a non-empty `path` and an integer `activeVersion` of at least 1. A missing required
+attribute SHALL throw `ContainerFileError.missingAttribute`, and a non-integer, an empty `path` or an
+`activeVersion` below 1 SHALL throw `ContainerFileError.invalidValue`.
 
 #### Scenario: a sidecar survives the file
 - **WHEN** a sidecar with presentations of three kinds on one item, one on an extra, a child path and rules is written with `SidecarFile.data(for:)` and read back
@@ -59,7 +59,7 @@ below 1 SHALL throw `ContainerFileError.invalidValue`.
 - **THEN** each throws `ContainerFileError.malformed("the document is empty")`
 
 #### Scenario: a rules reference that names nothing
-- **WHEN** a sidecar document's `<container>` has a `<rules>` element with no `path`, or with `version="0"`, or with `version="four"`
+- **WHEN** a sidecar document's `<container>` has a `<rules>` element with no `path`, or with `activeVersion="0"`, or with `activeVersion="four"`
 - **THEN** reading throws `missingAttribute` for the first and `invalidValue` for the other two
 
 Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aSidecarSurvivesTheFile`, `aSidecarWithRulesSurvivesTheFile`, `anEmptySidecarIsMalformed`, `aRulesReferenceThatNamesNothingIsRefused`). Rules inside an item read as a binding's are pinned by nothing yet.
@@ -86,7 +86,7 @@ drifted from the value is left for a validator to report.
 - **THEN** the comment and the hand-edited title remain, no alternative is added, `part1`'s old presentation is replaced, the second part is appended to its sequence, extras are created for the extra, and the child carries its `smd` path
 
 #### Scenario: a placement over a container with rules
-- **WHEN** a document whose `<rules>` element names version 2 of `rules`, with a comment before it, is updated with a sidecar that has a new presentation and no `rules`
+- **WHEN** a document whose `<rules>` element names active version 2 of `rules`, with a comment before it, is updated with a sidecar that has a new presentation and no `rules`
 - **THEN** the result holds the same `<rules>` element and the comment before it, and the new presentation
 
 #### Scenario: an update does not add rules
@@ -98,6 +98,19 @@ drifted from the value is left for a validator to report.
 - **THEN** the item still holds the binding's `<rules>`, and the new presentation in place of the old
 
 Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`anUpdateChangesOnlyTheLibrarysFacts`, `anUpdateLeavesTheRulesAsTheyStand`). A placement over an item with a binding's rules is pinned by nothing yet.
+
+### Requirement: SidecarRules names a version of a container's rules
+`SidecarRules` SHALL hold a `path`, the folder of every version of the rules relative to the
+sidecar's folder, and an `activeVersion`, the version in force, from 1. Its `file(version:)` SHALL be
+`<path>/<version>.xml`, any version's file relative to the sidecar's folder, and its `activeFile` the
+file of the active version. The package SHALL NOT read the folder or any file in it: which versions
+exist, and what their files say, are the library's server's.
+
+#### Scenario: where a version is
+- **WHEN** a sidecar's rules name the path `rules` and active version 4
+- **THEN** their `activeFile` is `rules/4.xml`, and their `file(version: 2)` is `rules/2.xml`
+
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aRulesReferenceNamesItsFile`).
 
 ## ADDED Requirements
 
@@ -146,14 +159,14 @@ Pinned by: nothing yet.
 
 ### Requirement: An item names the rules of each binding that has its own
 An item's binding rules SHALL be read from its `<rules>` children, each requiring a `binding` that is
-a UUID, a non-empty `path` and an integer `version` of at least 1, and naming the binding's folder of
-rule versions and the version in force as `SidecarRules` names a container's. Two `<rules>` on one
+a UUID, a non-empty `path` and an integer `activeVersion` of at least 1, and naming the binding's
+folder of rule versions and the version in force as `SidecarRules` names a container's. Two `<rules>` on one
 item naming the same binding SHALL throw `SidecarFileError.multipleRules`, and one holding an element
 SHALL throw `SidecarFileError.inlineRules`. The repository file SHALL hold none.
 
 #### Scenario: a binding's rules survive the file
-- **WHEN** a sidecar whose item has rules for one binding, at version 2 of the folder `rules/bindings/<binding>`, is written and read back
-- **THEN** the item holds `<rules>` with the binding, path and version before its presentations, and reads back equal
+- **WHEN** a sidecar whose item has rules for one binding, at active version 2 of the folder `rules/bindings/<binding>`, is written and read back
+- **THEN** the item holds `<rules>` with the binding, path and active version before its presentations, and reads back equal
 
 #### Scenario: two for one binding
 - **WHEN** an item has two `<rules>` naming the same binding
@@ -169,7 +182,7 @@ item's presentations when it had none, or removed when the rules given are nil. 
 does not have SHALL throw `SidecarFileError.unknownItem`. It SHALL change nothing else.
 
 #### Scenario: a binding's rules move to their next version
-- **WHEN** a document whose item has a comment, a presentation and rules for a binding at version 2 has that binding's rules set to version 3
-- **THEN** reading the result yields the binding's rules at version 3, the same presentation, and the comment is still there
+- **WHEN** a document whose item has a comment, a presentation and rules for a binding at active version 2 has that binding's rules set to active version 3
+- **THEN** reading the result yields the binding's rules at active version 3, the same presentation, and the comment is still there
 
 Pinned by: nothing yet.

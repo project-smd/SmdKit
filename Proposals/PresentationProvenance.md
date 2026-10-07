@@ -33,7 +33,7 @@ nearest of all, named on the item. This proposal reads and writes all three.
 
 ```xml
 <item type="episode" id="part1">
-    <rules binding="5b0e7c1a-…-91d2" path="rules/bindings/5b0e7c1a-…-91d2" version="2"/>
+    <rules binding="5b0e7c1a-…-91d2" path="rules/bindings/5b0e7c1a-…-91d2" activeVersion="2"/>
     <presentation profile="mobile" file="Part One - mobile.mkv">
         <source binding="5b0e7c1a-…-91d2">
             <segment scheme="discTitle" value="3F1AC2E9/00004.mpls" from="2" to="2"/>
@@ -70,6 +70,15 @@ id, each a `BindingRules` of a `binding` and its `SidecarRules`. Two for one bin
 refused, as two on a container are, and so is one that holds rules: the rules are in their files.
 Until now a `<rules>` inside an item was ignored as not the container's; it is still not the
 container's, and it is now read as the binding's.
+
+**`activeVersion`, not `version`.** A `<rules>` element's `path` names the folder of every version,
+and the attribute that picks the one in force is `activeVersion`, on the container's `<rules>` as on
+an item's, as smddb's [follow-up](https://github.com/project-smd/smddb/pull/38) names it, so that it
+does not read like a `<layer>`'s `version`, which is the version that made a file. This renames the
+attribute [Rules by reference](SidecarRulesReference.md) introduced: `SidecarRules.version` becomes
+`activeVersion`, and `file` becomes `activeFile`, beside a `file(version:)` that finds any version's
+file — which a reader needs to read the rules a `<layer>` names while another version is active.
+Nothing has been released, so the old attribute is not read.
 
 **This package checks structure and interprets nothing.** It requires what the format requires — a
 binding id that is a UUID, a key's two attributes together or neither, a span's two together, from
@@ -121,11 +130,12 @@ reads and writes the one form.
 
 `PresentationSource`, `NaturalKey`, `ChapterSpan`, `Transform`, `Layer` and `BindingRules`;
 `Presentation.source` and `transform`; `Sidecar.bindingRules`; reading, writing, updating and setting
-them, and each refusal; `SourceRef` removed; and the deltas archived. Tests: a presentation with two
+them, and each refusal; `SourceRef` removed; `SidecarRules.activeVersion`, `activeFile` and
+`file(version:)`, read and written as `activeVersion`; and the deltas archived. Tests: a presentation with two
 segments, one a span and one with no key, and a transform of a binding layer and a container layer
 survives the file; an item's binding rules survive the file and an update, and setting replaces, adds
 and removes them and changes nothing else; each malformed part is refused — a binding that is not a
 UUID, a `<source>` with no segment, a key or span half given, a span from zero or backwards, a layer
 of no subject or of two, a version below one, two `<source>`s or `<transform>`s on a presentation,
 two `<rules>` for one binding on an item, a binding `<rules>` holding rules; the repository file holds
-none of it.
+none of it; `file(version:)` finds a version other than the active one.
