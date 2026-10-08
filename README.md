@@ -31,10 +31,12 @@ swift test
   repository.
 
 - `SmdSidecar`, a target of its own, is the `.smd` as a library keeps it: `Sidecar` is a
-  `Container` plus which file holds each presentation of each item, where each child's
-  sidecar is, and the container's `<rules>` — which version of the rules, kept as files in a folder
-  beside the sidecar, the server that encodes the library applies; the rules themselves are never
-  read here — and `SidecarFile` reads and writes it as the repository file with those facts in.
+  `Container` plus which file holds each presentation of each item — with the binding it was made
+  from and the rule layers that made it — where each child's sidecar is, and the `<rules>` of the
+  container and of each binding that has its own — which version of the rules, kept as files in a
+  folder beside the sidecar, the server that encodes the library applies; the rules themselves are
+  never read here — and `SidecarFile` reads and writes it as the repository file with those facts
+  in.
   Writing has an update mode that changes only the library's facts in a document that is
   already on disk, leaving comments and hand-written fields alone.
 
@@ -69,8 +71,8 @@ proposal lists:
 | `id="talons-of-weng-chiang"`, relative to the tree | `id="<16 hex>"`, global | Identity is minted here |
 | `<item type="container" smd="Season 14/season.smd"/>` | `<item type="container" container="<16 hex>"/>` | A child is named by identity, not by where a library put it |
 | `nfo="tvshow.nfo"` | `<externalRef provider="tvdb" value="76107"/>` | The NFO is where a library keeps the provider's id; here the id is the fact |
-| `<presentation file="…">` | absent | Which file holds a thing is a library's fact |
-| `<rules path="rules" version="4"/>` | absent | How a library encodes a container's files is its own policy |
+| `<presentation file="…">`, with its `<source binding>` and `<transform>` | absent | Which file holds a thing, and how this library made it, are a library's facts |
+| `<rules path="rules" activeVersion="4"/>`, on a container or, naming a binding, on an item | absent | How a library encodes a container's files is its own policy |
 | `<item ref="behind-the-sofa#s13-pyramids"/>` | `<item ref="<16 hex>#s13-pyramids"/>` | Same form, global id |
 
 Everything else — titles, `year` (with `inTitle="true"` when the year is part of the name),

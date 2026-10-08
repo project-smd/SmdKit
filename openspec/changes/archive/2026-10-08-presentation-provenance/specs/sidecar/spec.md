@@ -62,7 +62,7 @@ attribute SHALL throw `ContainerFileError.missingAttribute`, and a non-integer, 
 - **WHEN** a sidecar document's `<container>` has a `<rules>` element with no `path`, or with `activeVersion="0"`, or with `activeVersion="four"`
 - **THEN** reading throws `missingAttribute` for the first and `invalidValue` for the other two
 
-Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aSidecarSurvivesTheFile`, `aSidecarWithRulesSurvivesTheFile`, `anEmptySidecarIsMalformed`, `aRulesReferenceThatNamesNothingIsRefused`). Rules inside an item read as a binding's are pinned by nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aSidecarSurvivesTheFile`, `aSidecarWithRulesSurvivesTheFile`, `rulesInsideAnItemAreNotTheContainers`, `anEmptySidecarIsMalformed`, `aRulesReferenceThatNamesNothingIsRefused`).
 
 ### Requirement: An update changes only the library's facts
 An update SHALL leave the existing document's comments, element order and the container's own
@@ -97,7 +97,7 @@ drifted from the value is left for a validator to report.
 - **WHEN** a document whose item holds a binding's `<rules>` and a presentation is updated with a sidecar that replaces the item's presentation and has no binding rules
 - **THEN** the item still holds the binding's `<rules>`, and the new presentation in place of the old
 
-Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`anUpdateChangesOnlyTheLibrarysFacts`, `anUpdateLeavesTheRulesAsTheyStand`). A placement over an item with a binding's rules is pinned by nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`anUpdateChangesOnlyTheLibrarysFacts`, `anUpdateLeavesTheRulesAsTheyStand`, `anUpdateLeavesABindingsRulesAsTheyStand`).
 
 ### Requirement: SidecarRules names a version of a container's rules
 `SidecarRules` SHALL hold a `path`, the folder of every version of the rules relative to the
@@ -134,7 +134,7 @@ and any other value outside those bounds, or more than one `<source>` on a prese
 - **WHEN** a presentation's `<segment>` has `from="3"` and `to="2"`
 - **THEN** reading throws `invalidValue`
 
-Pinned by: nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aPresentationNamesItsBindingAndItsSegments`, `aMalformedSourceIsRefused`).
 
 ### Requirement: A presentation names every set of rules that made it
 A presentation's `transform`, when it has one, SHALL be written as one `<transform>` element with its
@@ -155,7 +155,7 @@ ruleset, a version or a digest means.
 - **WHEN** a presentation's `<layer>` names both a `binding` and a `container`
 - **THEN** reading throws `invalidValue`
 
-Pinned by: nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aPresentationNamesTheRulesThatMadeIt`, `aMalformedTransformIsRefused`).
 
 ### Requirement: An item names the rules of each binding that has its own
 An item's binding rules SHALL be read from its `<rules>` children, each requiring a `binding` that is
@@ -172,7 +172,7 @@ SHALL throw `SidecarFileError.inlineRules`. The repository file SHALL hold none.
 - **WHEN** an item has two `<rules>` naming the same binding
 - **THEN** reading throws `multipleRules`
 
-Pinned by: nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`aBindingsRulesSurviveTheFile`, `aBindingsRulesAreRefusedWhenTheyCannotSayWhichApply`).
 
 ### Requirement: Setting a binding's rules changes only those rules
 `SidecarFile.data(settingRules:binding:item:in:)` SHALL read the document's container with
@@ -185,4 +185,4 @@ does not have SHALL throw `SidecarFileError.unknownItem`. It SHALL change nothin
 - **WHEN** a document whose item has a comment, a presentation and rules for a binding at active version 2 has that binding's rules set to active version 3
 - **THEN** reading the result yields the binding's rules at active version 3, the same presentation, and the comment is still there
 
-Pinned by: nothing yet.
+Pinned by: `Tests/SmdSidecarTests/SidecarFileTests.swift` (`settingABindingsRulesChangesOnlyThoseRules`).

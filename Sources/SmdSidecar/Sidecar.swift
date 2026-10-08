@@ -7,7 +7,7 @@ import SmdKit
 /// A container as a library keeps it: the same container the repository holds, plus the facts
 /// that are the library's own — which file holds each presentation of each item, where each
 /// child container's sidecar is, and which version of the rules the library encodes the
-/// container's files by. `StructuredContainers.md` calls the file an `.smd`; the repository file is
+/// container's files by, and each binding's. `StructuredContainers.md` calls the file an `.smd`; the repository file is
 /// that element with these facts taken out, and this is them put back.
 public struct Sidecar: Hashable, Sendable {
     public var container: Container
@@ -20,12 +20,17 @@ public struct Sidecar: Hashable, Sendable {
     /// that applies them. Authored rather than derived, so an update leaves the document's as it
     /// stands; `SidecarFile.data(settingRules:in:)` is how it changes.
     public var rules: SidecarRules?
+    /// The rules of each binding that has its own, by the id of the item the binding binds, in the
+    /// order they are listed. Authored like the container's, so an update leaves them as they stand;
+    /// `SidecarFile.data(settingRules:binding:item:in:)` is how one changes.
+    public var bindingRules: [String: [BindingRules]]
 
-    public init(container: Container, children: [ContainerID: String] = [:], presentations: [String: [Presentation]] = [:], rules: SidecarRules? = nil) {
+    public init(container: Container, children: [ContainerID: String] = [:], presentations: [String: [Presentation]] = [:], rules: SidecarRules? = nil, bindingRules: [String: [BindingRules]] = [:]) {
         self.container = container
         self.children = children
         self.presentations = presentations
         self.rules = rules
+        self.bindingRules = bindingRules
     }
 
     /// The name a presentation is shown under: its alternative's title, or its profile, or
@@ -53,30 +58,23 @@ public struct Presentation: Hashable, Sendable, Codable {
     public var profile: String?
     /// Relative to the folder holding the sidecar, and never outside the container's folder.
     public var file: String
-    /// The disc title this was ripped from, by natural key: the disc's content hash and the
-    /// playlist. The one attribute in the format that names something outside the library.
-    public var source: SourceRef?
+    /// The binding this was made from, with a copy of its segments. The one element in the format
+    /// that names something outside the library.
+    public var source: PresentationSource?
+    /// Every set of rules that made the file, nearest first.
+    public var transform: Transform?
     /// Each of the container's features this file carries, at *this file's* stream indices.
     public var tracks: [TrackMapping]
     public var chapters: [Chapter]
 
-    public init(alternative: String? = nil, profile: String? = nil, file: String, source: SourceRef? = nil, tracks: [TrackMapping] = [], chapters: [Chapter] = []) {
+    public init(alternative: String? = nil, profile: String? = nil, file: String, source: PresentationSource? = nil, transform: Transform? = nil, tracks: [TrackMapping] = [], chapters: [Chapter] = []) {
         self.alternative = alternative
         self.profile = profile
         self.file = file
         self.source = source
+        self.transform = transform
         self.tracks = tracks
         self.chapters = chapters
-    }
-}
-
-public struct SourceRef: Hashable, Sendable, Codable {
-    public var disc: String
-    public var playlist: String
-
-    public init(disc: String, playlist: String) {
-        self.disc = disc
-        self.playlist = playlist
     }
 }
 
