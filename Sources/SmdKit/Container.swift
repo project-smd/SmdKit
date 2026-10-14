@@ -467,6 +467,22 @@ public struct EntryType: Hashable, Sendable, Codable, RawRepresentable, CustomSt
     public static let episode = EntryType(named: "episode")
     public static let movie = EntryType(named: "movie")
     public static let featurette = EntryType(named: "featurette")
+    public static let behindTheScenes = EntryType(named: "behindTheScenes")
+    public static let deletedScene = EntryType(named: "deletedScene")
+    public static let interview = EntryType(named: "interview")
+    public static let trailer = EntryType(named: "trailer")
+    public static let scene = EntryType(named: "scene")
+    public static let short = EntryType(named: "short")
+    public static let clip = EntryType(named: "clip")
+    public static let themeSong = EntryType(named: "themeSong")
+    public static let themeVideo = EntryType(named: "themeVideo")
+
+    /// The types an extra is classified by, as Emby's `ExtraType` names them, so that a client
+    /// grouping extras by type reads them without translation. An extra may still have any other
+    /// type, `movie` or one named nowhere here: these are the types offered, not the ones allowed.
+    public static let extraTypes: [EntryType] = [
+        .featurette, .behindTheScenes, .deletedScene, .interview, .trailer, .scene, .short, .clip, .themeSong, .themeVideo,
+    ]
 
     public var description: String { rawValue }
 }
