@@ -329,6 +329,14 @@ struct SmdKitTests {
         }
     }
 
+    @Test func extrasAreClassifiedByEmbysExtraTypes() {
+        #expect(EntryType.extraTypes.map(\.rawValue) == [
+            "featurette", "behindTheScenes", "deletedScene", "interview", "trailer", "scene", "short", "clip", "themeSong", "themeVideo",
+        ])
+        #expect(EntryType(rawValue: "trailer") == .trailer, "a named type is the one its raw value reads as")
+        #expect(!EntryType.extraTypes.contains(.movie), "a film filed among extras keeps its type, which is not an extra's")
+    }
+
     @Test func thereAreEightContainerTypes() {
         let names = ["series", "season", "serial", "arc", "volume", "collection", "episode", "movie"]
         #expect(ContainerType.allCases.map(\.rawValue) == names)
