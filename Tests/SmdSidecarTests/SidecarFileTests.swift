@@ -552,5 +552,101 @@ struct SidecarFileTests {
             try SidecarFile.data(settingRules: three, binding: "not-a-uuid", item: "part1", in: onDisk)
         }
     }
-}
 
+    // MARK: - Setting the container
+
+    @Test func settingTheContainerChangesOnlyItsOwnFields() throws {
+        let onDisk = Data("""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!-- Pyramids of Mars, as this library keeps it. -->
+        <container format="1" id="fedcba9876543210" type="serial">
+            <title>Pyramids of Mars</title>
+            <typeLabel>Story</typeLabel>
+            <alternatives default="broadcast">
+                <alternative id="broadcast" sequence="parts">
+                    <title>Broadcast version</title>
+                </alternative>
+                <alternative id="se" sequence="parts">
+                    <title>Updated special effects</title>
+                </alternative>
+            </alternatives>
+            <features>
+                <feature id="commentary1" type="commentary">
+                    <title>Commentary</title>
+                    <participant name="Tom Baker" role="The Doctor"/>
+                </feature>
+            </features>
+            <sequence id="parts">
+                <item type="episode" id="part1">
+                    <!-- Re-ripped from the 2004 disc. -->
+                    <title>Part One</title>
+                    <rules binding="\(Self.partOne)" path="rules/bindings/\(Self.partOne)" activeVersion="2"/>
+                    <presentation file="Part One.mkv"/>
+                </item>
+                <item type="episode" id="part2">
+                    <title>Part Two</title>
+                    <presentation file="Part Two.mkv"/>
+                </item>
+                <item type="container" id="next" container="0123456789abcdef" smd="Next/container.smd"/>
+            </sequence>
+            <extras>
+                <item type="featurette" id="now-and-then">
+                    <title>Now and Then</title>
+                    <presentation file="extras/Now and Then.mkv"/>
+                </item>
+            </extras>
+            <rules path="rules" activeVersion="4"/>
+        </container>
+
+        """.utf8)
+        let before = try SidecarFile.sidecar(from: onDisk)
+
+        // The value: a new title and year, an alternative and a feature added, the parts reordered.
+        var container = before.container
+        container.title = Title("Pyramids of Mars (Special Edition)")!
+        container.year = 1975
+        container.alternatives.append(Alternative(id: "extended", sequence: "parts", title: "Extended version"))
+        container.features.append(Feature(id: "score", type: .isolatedMusic, title: "Isolated score"))
+        container.sequences[0].items = [container.sequences[0].items[1], container.sequences[0].items[0], container.sequences[0].items[2]]
+
+        let set = try SidecarFile.data(settingContainer: container, in: onDisk)
+        let text = String(decoding: set, as: UTF8.self)
+        let read = try SidecarFile.sidecar(from: set)
+        #expect(read.container == container, "the own fields are the value's")
+        #expect(try ContainerFile.container(from: set) == container)
+        #expect(read.presentations == before.presentations, "and the library's facts are the document's")
+        #expect(read.children == before.children)
+        #expect(read.rules == before.rules)
+        #expect(read.bindingRules == before.bindingRules)
+        #expect(text.contains("<!-- Pyramids of Mars, as this library keeps it. -->"))
+        #expect(text.contains("<item type=\"episode\" id=\"part1\">\n            <!-- Re-ripped from the 2004 disc. -->\n            <title>Part One</title>"), "a comment in an item the value keeps stays in it")
+        #expect(try #require(text.range(of: "id=\"part2\"")).lowerBound < #require(text.range(of: "id=\"part1\"")).lowerBound, "the items are in the value's order")
+        #expect(text.hasSuffix("    <rules path=\"rules\" activeVersion=\"4\"/>\n</container>\n"))
+
+        // Written as the repository file would be: setting a generated sidecar's own container
+        // changes nothing.
+        let generated = try SidecarFile.data(for: Self.pyramids)
+        #expect(try SidecarFile.data(settingContainer: Self.pyramids.container, in: generated) == generated)
+    }
+
+    @Test func settingTheContainerRemovesAnItemItNoLongerDeclares() throws {
+        let onDisk = try SidecarFile.data(for: Self.pyramids)
+        var container = Self.pyramids.container
+        container.sequences[0].items.removeAll { $0.id?.value == "part2" || $0.id?.value == "next" }
+        container.extras = []
+        container.sequences[0].items.append(.leaf(Entry.Leaf(id: ItemID("part3")!, type: .episode, title: "Part Three")))
+
+        let read = try SidecarFile.sidecar(from: SidecarFile.data(settingContainer: container, in: onDisk))
+        #expect(read.container == container)
+        #expect(read.presentations == ["part1": Self.pyramids.presentations["part1"]!], "an item the value no longer declares goes, with its presentations")
+        #expect(read.children.isEmpty, "and a child it no longer holds loses its path")
+    }
+
+    @Test func settingAnotherContainersValueIsRefused() throws {
+        let onDisk = try SidecarFile.data(for: Self.pyramids)
+        let other = Container(id: ContainerID.mint(), type: .movie, title: Title("Other")!)
+        #expect(throws: ContainerFileError.idMismatch(file: other.id, document: Self.pyramids.container.id)) {
+            try SidecarFile.data(settingContainer: other, in: onDisk)
+        }
+    }
+}
