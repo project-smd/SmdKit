@@ -720,6 +720,84 @@ struct SmdKitTests {
         #expect(try await repository.containers().map(\.id) == [container.id])
     }
 
+    @Test func aProvisionalIDIsOneTheRepositoryHasNoFileFor() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SmdKitTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let repository = LocalRepository(root: folder)
+        try await repository.save(Self.talons)
+        let before = try FileManager.default.contentsOfDirectory(atPath: repository.containersURL.path)
+
+        let id = try await repository.provisionalID()
+        #expect(id != Self.talons.id)
+        #expect(!FileManager.default.fileExists(atPath: repository.fileURL(for: id).path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: repository.containersURL.path) == before)
+    }
+
+    @Test func aContributionNamesOnlyContainersSomeoneHolds() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SmdKitTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let repository = LocalRepository(root: folder)
+        let season = Container(type: .season, title: title("Season 14"))
+        var series = Container(type: .series, title: title("Doctor Who (1963)"))
+        series.sequences = [Sequence(items: [.child(Entry.Child(id: item("season-14"), container: season.id))])]
+
+        // The season is in neither the repository nor the contribution.
+        await #expect(
+            throws: ContributionError.missing([ContributionError.Missing(container: series.id, names: season.id)])
+        ) {
+            try await repository.contribute([series])
+        }
+        #expect(try await repository.containers().isEmpty)
+
+        // Carried with it, it is accepted.
+        #expect(
+            try await repository.contribute([series, season])
+                == .written([repository.fileURL(for: series.id), repository.fileURL(for: season.id)])
+        )
+
+        // A ref into a container nobody holds is refused as a child is, and every failure is named.
+        // A ref with no container points within its own, and is not checked.
+        let elsewhere = ContainerID("00000000000000a3")!
+        var tales = Container(type: .series, title: title("Tales of the TARDIS"))
+        tales.extras = [
+            .ref(EntryRef(container: elsewhere, item: item("pyramids"))),
+            .ref(EntryRef(item: item("own"))),
+            .child(Entry.Child(id: item("next"), container: ContainerID("00000000000000a4")!)),
+        ]
+        await #expect(
+            throws: ContributionError.missing([
+                ContributionError.Missing(container: tales.id, names: elsewhere),
+                ContributionError.Missing(container: tales.id, names: ContainerID("00000000000000a4")!),
+            ])
+        ) {
+            try await repository.contribute([tales])
+        }
+
+        // One id twice is refused, and writes nothing.
+        let film = Container(type: .movie, title: title("Alien"))
+        await #expect(throws: ContributionError.duplicate([film.id])) {
+            try await repository.contribute([film, film])
+        }
+        #expect(try await repository.container(film.id) == nil)
+    }
+
+    @Test func aContributionToTheRepositoryWritesEachFile() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SmdKitTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let repository = LocalRepository(root: folder)
+        var held = Container(type: .movie, title: title("Alien"), year: 1997)
+        try await repository.save(held)
+        held.year = 1979
+        let new = Container(id: try await repository.provisionalID(), type: .movie, title: title("Aliens"))
+
+        let contribution = try await repository.contribute([new, held])
+        #expect(contribution == .written([repository.fileURL(for: new.id), repository.fileURL(for: held.id)]))
+        #expect(try await repository.container(new.id) == new)
+        #expect(try await repository.container(held.id)?.year == 1979)
+        // Nothing but the containers' files: the folder need not be a checkout, and nothing commits.
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == [LocalRepository.containersFolder])
+    }
+
     @Test func slugsAreMadeFromTitles() {
         #expect(Slug.make(from: "The Talons of Weng-Chiang") == "the-talons-of-weng-chiang")
         #expect(Slug.make(from: "  Pyramids of Mars: Part 1 (1975) ") == "pyramids-of-mars-part-1-1975")
