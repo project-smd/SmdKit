@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 the smddb project authors
 
-import Foundation
 import SmdKit
 
 /// A container as a library keeps it: the same container the repository holds, plus the facts
@@ -25,7 +24,13 @@ public struct Sidecar: Hashable, Sendable {
     /// `SidecarFile.data(settingRules:binding:item:in:)` is how one changes.
     public var bindingRules: [String: [BindingRules]]
 
-    public init(container: Container, children: [ContainerID: String] = [:], presentations: [String: [Presentation]] = [:], rules: SidecarRules? = nil, bindingRules: [String: [BindingRules]] = [:]) {
+    public init(
+        container: Container,
+        children: [ContainerID: String] = [:],
+        presentations: [String: [Presentation]] = [:],
+        rules: SidecarRules? = nil,
+        bindingRules: [String: [BindingRules]] = [:]
+    ) {
         self.container = container
         self.children = children
         self.presentations = presentations
@@ -67,7 +72,15 @@ public struct Presentation: Hashable, Sendable, Codable {
     public var tracks: [TrackMapping]
     public var chapters: [Chapter]
 
-    public init(alternative: String? = nil, profile: String? = nil, file: String, source: PresentationSource? = nil, transform: Transform? = nil, tracks: [TrackMapping] = [], chapters: [Chapter] = []) {
+    public init(
+        alternative: String? = nil,
+        profile: String? = nil,
+        file: String,
+        source: PresentationSource? = nil,
+        transform: Transform? = nil,
+        tracks: [TrackMapping] = [],
+        chapters: [Chapter] = []
+    ) {
         self.alternative = alternative
         self.profile = profile
         self.file = file

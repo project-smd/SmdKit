@@ -30,14 +30,15 @@ public enum Slug {
     public static func unique(from title: String, avoiding taken: Set<String>) -> String {
         let base = make(from: title)
         guard taken.contains(base) else { return base }
-        var n = 2
-        while taken.contains("\(base)-\(n)") { n += 1 }
-        return "\(base)-\(n)"
+        var suffix = 2
+        while taken.contains("\(base)-\(suffix)") { suffix += 1 }
+        return "\(base)-\(suffix)"
     }
 
     public static func isValid(_ slug: String) -> Bool {
-        !slug.isEmpty && !slug.hasPrefix("-") && !slug.hasSuffix("-") && slug.unicodeScalars.allSatisfy {
-            ($0.value >= 0x61 && $0.value <= 0x7A) || ($0.value >= 0x30 && $0.value <= 0x39) || $0 == "-"
-        }
+        !slug.isEmpty && !slug.hasPrefix("-") && !slug.hasSuffix("-")
+            && slug.unicodeScalars.allSatisfy {
+                ($0.value >= 0x61 && $0.value <= 0x7A) || ($0.value >= 0x30 && $0.value <= 0x39) || $0 == "-"
+            }
     }
 }

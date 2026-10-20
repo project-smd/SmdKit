@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 the smddb project authors
 
-import Foundation
 import SmdKit
+
+// FoundationXML exists only where Foundation is split into modules, and there the lighter
+// FoundationEssentials is all the rest of this file needs.
 #if canImport(FoundationXML)
+import FoundationEssentials
 import FoundationXML
+#else
+import Foundation
 #endif
 
 /// The sidecar as a file. It is the repository file with a library's facts in it, and it is read
@@ -58,9 +63,13 @@ public enum SidecarFile {
     /// The reference a `<rules>` element makes. One that holds rules is refused rather than read for
     /// its attributes: the rules written inside would be dropped without a word.
     private static func rules(_ element: XMLElement) throws -> SidecarRules {
-        guard !(element.children ?? []).contains(where: { $0.kind == .element }) else { throw SidecarFileError.inlineRules }
+        guard !(element.children ?? []).contains(where: { $0.kind == .element }) else {
+            throw SidecarFileError.inlineRules
+        }
         let path = try element.required("path")
-        guard !path.isEmpty else { throw ContainerFileError.invalidValue(element: "rules", attribute: "path", value: path) }
+        guard !path.isEmpty else {
+            throw ContainerFileError.invalidValue(element: "rules", attribute: "path", value: path)
+        }
         return SidecarRules(path: path, activeVersion: try element.counting("activeVersion"))
     }
 
@@ -84,7 +93,11 @@ public enum SidecarFile {
         presentation.source = try element.single("source").map(source)
         presentation.transform = try element.single("transform").map(transform)
         presentation.tracks = try element.elements(forName: "track").map {
-            TrackMapping(feature: try $0.required("feature"), audio: try $0.optionalInteger("audio"), subtitle: try $0.optionalInteger("subtitle"))
+            TrackMapping(
+                feature: try $0.required("feature"),
+                audio: try $0.optionalInteger("audio"),
+                subtitle: try $0.optionalInteger("subtitle")
+            )
         }
         presentation.chapters = try element.elements(forName: "chapter").map {
             Chapter(index: try $0.integer("index"), title: try $0.required("title"))
@@ -99,7 +112,9 @@ public enum SidecarFile {
             let key = try segment.pair("scheme", "value").map { NaturalKey(scheme: $0, value: $1) }
             let chapters = try segment.pair("from", "to").map { _, to in
                 let span = ChapterSpan(from: try segment.counting("from"), to: try segment.counting("to"))
-                guard span.from <= span.to else { throw ContainerFileError.invalidValue(element: "segment", attribute: "to", value: to) }
+                guard span.from <= span.to else {
+                    throw ContainerFileError.invalidValue(element: "segment", attribute: "to", value: to)
+                }
                 return span
             }
             return PresentationSource.Segment(key: key, chapters: chapters)
@@ -111,7 +126,9 @@ public enum SidecarFile {
     /// How a presentation was made: the ruleset, and each layer naming exactly one subject.
     private static func transform(_ element: XMLElement) throws -> Transform {
         let ruleset = try element.required("ruleset")
-        guard !ruleset.isEmpty else { throw ContainerFileError.invalidValue(element: "transform", attribute: "ruleset", value: ruleset) }
+        guard !ruleset.isEmpty else {
+            throw ContainerFileError.invalidValue(element: "transform", attribute: "ruleset", value: ruleset)
+        }
         let layers = try element.elements(forName: "layer").map { layer in
             let subject: Transform.Layer.Subject
             switch (layer.attribute("binding"), layer.attribute("container")) {
@@ -120,7 +137,9 @@ public enum SidecarFile {
             case (_?, nil):
                 subject = .binding(try layer.uuid("binding"))
             case (nil, let container?):
-                guard let id = ContainerID(container) else { throw ContainerFileError.invalidValue(element: "layer", attribute: "container", value: container) }
+                guard let id = ContainerID(container) else {
+                    throw ContainerFileError.invalidValue(element: "layer", attribute: "container", value: container)
+                }
                 subject = .container(id)
             case (nil, nil):
                 throw ContainerFileError.missingAttribute(element: "layer", attribute: "binding")
@@ -137,10 +156,15 @@ public enum SidecarFile {
         let document = try XMLDocument(data: ContainerFile.data(for: sidecar.container), options: [])
         try apply(sidecar, to: document)
         if let root = document.rootElement() {
-            let byID = Dictionary(items(in: root).compactMap { item in item.attribute("id").map { ($0, item) } }, uniquingKeysWith: { first, _ in first })
+            let byID = Dictionary(
+                items(in: root).compactMap { item in item.attribute("id").map { ($0, item) } },
+                uniquingKeysWith: { first, _ in first }
+            )
             for (id, bindingRules) in sidecar.bindingRules where !bindingRules.isEmpty {
                 guard let item = byID[id] else { throw SidecarFileError.unknownItem(id) }
-                for binding in bindingRules { insertBeforePresentations(binding.rules.element(binding: binding.binding), in: item) }
+                for binding in bindingRules {
+                    insertBeforePresentations(binding.rules.element(binding: binding.binding), in: item)
+                }
             }
             if let rules = sidecar.rules {
                 root.addChild(rules.element())
@@ -182,12 +206,21 @@ public enum SidecarFile {
     /// The document on disk with one item's `<rules>` for one binding replaced where it stands, added
     /// before the item's presentations when it has none, or removed for nil — and nothing else
     /// changed. The one way a binding's rules change, so that filing a file never does it by accident.
-    public static func data(settingRules rules: SidecarRules?, binding: String, item id: String, in existing: Data) throws -> Data {
+    public static func data(
+        settingRules rules: SidecarRules?,
+        binding: String,
+        item id: String,
+        in existing: Data
+    ) throws -> Data {
         _ = try ContainerFile.container(from: existing)
-        guard UUID(uuidString: binding) != nil else { throw ContainerFileError.invalidValue(element: "rules", attribute: "binding", value: binding) }
+        guard UUID(uuidString: binding) != nil else {
+            throw ContainerFileError.invalidValue(element: "rules", attribute: "binding", value: binding)
+        }
         let document = try XMLDocument(data: existing, options: [])
         guard let root = document.rootElement() else { throw ContainerFileError.notAContainer }
-        guard let item = items(in: root).first(where: { $0.attribute("id") == id }) else { throw SidecarFileError.unknownItem(id) }
+        guard let item = items(in: root).first(where: { $0.attribute("id") == id }) else {
+            throw SidecarFileError.unknownItem(id)
+        }
         let present = item.elements(forName: "rules").filter { $0.attribute("binding") == binding }
         let position = present.first.flatMap { item.children?.firstIndex(of: $0) }
         for element in present { element.detach() }
@@ -199,168 +232,6 @@ public enum SidecarFile {
             }
         }
         return XMLWriter.data(for: document)
-    }
-
-    /// The document on disk with the container's own fields made the value's — what it says of
-    /// itself and its structure, everything `ContainerFile` writes — and the library's facts kept:
-    /// each item's presentations and binding rules, each child's `smd` path, and the container's
-    /// `<rules>` reference. Refused when the value is another container's. The counterpart of an
-    /// update, which keeps the own fields and changes only the facts.
-    ///
-    /// The value decides what the container holds and in what order. An element whose content the
-    /// value does not change is kept as it stands, comments and mixed content inside it included,
-    /// and an item it still declares keeps its element wherever the value now puts it, with the
-    /// comments before it and its facts. An item the value no longer declares is removed with its
-    /// facts — whoever edits a container decides first whether a library may lose them — and a
-    /// child's path is kept for a child container the value still holds. What the document holds
-    /// that is neither the value's nor a fact the sidecar reads, a comment or an element no reader
-    /// knows, stays before the element it stood before, or last when that element is gone.
-    public static func data(settingContainer container: Container, in existing: Data) throws -> Data {
-        _ = try ContainerFile.container(from: existing, expecting: container.id)
-        let document = try XMLDocument(data: existing, options: [])
-        guard let root = document.rootElement() else { throw ContainerFileError.notAContainer }
-        guard let value = try XMLDocument(data: ContainerFile.data(for: container), options: []).rootElement() else {
-            throw ContainerFileError.notAContainer
-        }
-
-        // Facts that are keyed by something other than where they stand: a child's path by the
-        // container it names, and an item, with its presentations and rules, by its id, wherever
-        // in the sequences or extras the value moves it.
-        var paths: [String: String] = [:]
-        for item in items(in: root) {
-            if let child = item.attribute("container"), let path = item.attribute("smd"), paths[child] == nil { paths[child] = path }
-        }
-        var held: [String: Slot] = [:]
-        for holder in root.elements(forName: "sequence") + root.elements(forName: "extras") {
-            for slot in slots(of: holder) {
-                if let item = slot.element, item.name == "item", let id = item.attribute("id"), held[id] == nil { held[id] = slot }
-            }
-        }
-
-        merge(root, with: value, held: &held)
-        for item in items(in: root) {
-            item.removeAttribute(forName: "smd")
-            item.set("smd", item.attribute("container").flatMap { paths[$0] })
-        }
-        return XMLWriter.data(for: document)
-    }
-
-    /// An element of the document and the comments, instructions and text that stand before it;
-    /// or, with no element, those that stand after the last.
-    private struct Slot {
-        var leading: [XMLNode]
-        var element: XMLElement?
-    }
-
-    /// The elements `ContainerFile` writes inside each element it writes children into. Anything
-    /// else inside one is not the container's own, and is kept by setting it.
-    private static let ownChildren: [String: Set<String>] = [
-        "container": ["title", "year", "typeLabel", "outline", "externalRef", "alternatives", "features", "sequence", "extras"],
-        "alternatives": ["alternative"],
-        "alternative": ["title", "outline"],
-        "features": ["feature"],
-        "feature": ["title", "participant"],
-        "sequence": ["item"],
-        "extras": ["item"],
-        "item": ["title", "outline", "externalRef"],
-    ]
-
-    private static func slots(of element: XMLElement) -> [Slot] {
-        var slots: [Slot] = []
-        var leading: [XMLNode] = []
-        for node in element.children ?? [] {
-            if let child = node as? XMLElement, node.kind == .element {
-                slots.append(Slot(leading: leading, element: child))
-                leading = []
-            } else if node.kind != .text || !(node.stringValue ?? "").allSatisfy(\.isWhitespace) {
-                leading.append(node)
-            }
-        }
-        if !leading.isEmpty { slots.append(Slot(leading: leading, element: nil)) }
-        return slots
-    }
-
-    /// What tells one of an element's children from its siblings of the same name.
-    private static func key(_ element: XMLElement) -> String {
-        let name = element.name ?? ""
-        if let id = element.attribute("id") { return "\(name)#id=\(id)" }
-        if let ref = element.attribute("ref") { return "\(name)#ref=\(ref)" }
-        if name == "externalRef" { return "\(name)#\(element.attribute("provider") ?? "")=\(element.attribute("value") ?? "")" }
-        if name == "participant" { return "\(name)#\(element.attribute("name") ?? "")=\(element.attribute("role") ?? "")" }
-        return name
-    }
-
-    /// Whether the repository reader reads the same from the two: their attributes and their text.
-    private static func reads(_ existing: XMLElement, as value: XMLElement) -> Bool {
-        func attributes(_ element: XMLElement) -> [String: String] {
-            Dictionary((element.attributes ?? []).map { ($0.name ?? "", $0.stringValue ?? "") }, uniquingKeysWith: { first, _ in first })
-        }
-        func text(_ element: XMLElement) -> String {
-            (element.stringValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return existing.name == value.name && attributes(existing) == attributes(value) && text(existing) == text(value)
-    }
-
-    /// The existing element given the value's attributes and own children, in the value's order,
-    /// keeping its own children the value does not change and every child that is not its own.
-    private static func merge(_ existing: XMLElement, with value: XMLElement, held: inout [String: Slot]) {
-        existing.attributes = (value.attributes ?? []).map { XMLNode.attribute(withName: $0.name ?? "", stringValue: $0.stringValue ?? "") as! XMLNode }
-        let own = ownChildren[existing.name ?? ""] ?? []
-        let slots = slots(of: existing)
-
-        var matching: [String: [Slot]] = [:]
-        for slot in slots {
-            guard let element = slot.element, own.contains(element.name ?? "") else { continue }
-            if element.name == "item", element.attribute("id") != nil { continue }
-            matching[key(element), default: []].append(slot)
-        }
-
-        var placed: [(leading: [XMLNode], element: XMLElement)] = []
-        for case let child as XMLElement in value.children ?? [] {
-            let slot: Slot?
-            if child.name == "item", let id = child.attribute("id") {
-                slot = held.removeValue(forKey: id)
-            } else if var candidates = matching[key(child)], !candidates.isEmpty {
-                slot = candidates.removeFirst()
-                matching[key(child)] = candidates
-            } else {
-                slot = nil
-            }
-            if let slot, let element = slot.element {
-                if ownChildren[child.name ?? ""] != nil {
-                    merge(element, with: child, held: &held)
-                    placed.append((slot.leading, element))
-                } else {
-                    placed.append((slot.leading, reads(element, as: child) ? element : child))
-                }
-            } else {
-                placed.append(([], child))
-            }
-        }
-
-        // What is not the container's own goes before the next of its own elements that is still
-        // here, or last.
-        var before: [ObjectIdentifier: [Slot]] = [:]
-        var last: [Slot] = []
-        let kept = Set(placed.map { ObjectIdentifier($0.element) })
-        for (index, slot) in slots.enumerated() {
-            if let element = slot.element, own.contains(element.name ?? "") { continue }
-            let anchor = slots[(index + 1)...].lazy.compactMap(\.element).first { own.contains($0.name ?? "") && kept.contains(ObjectIdentifier($0)) }
-            if let anchor { before[ObjectIdentifier(anchor), default: []].append(slot) } else { last.append(slot) }
-        }
-
-        var children: [XMLNode] = []
-        for (leading, element) in placed {
-            for slot in before[ObjectIdentifier(element)] ?? [] { children += slot.leading + (slot.element.map { [$0] } ?? []) }
-            children += leading + [element]
-        }
-        for slot in last { children += slot.leading + (slot.element.map { [$0] } ?? []) }
-
-        for child in existing.children ?? [] { child.detach() }
-        for child in children {
-            child.detach()
-            existing.addChild(child)
-        }
     }
 
     /// An item's `<rules>` go before its presentations, which are the rest of what a library keeps
@@ -405,10 +276,12 @@ public enum SidecarFile {
         // document has are drift, left with their facts for a validator to report.
         let entries = sidecar.container.sequences.flatMap(\.items) + sidecar.container.extras
         let declared = Set(entries.compactMap { $0.id?.value })
-        let held = Set(entries.compactMap { entry -> ContainerID? in
-            if case .child(let child) = entry { return child.container }
-            return nil
-        })
+        let held = Set(
+            entries.compactMap { entry -> ContainerID? in
+                if case .child(let child) = entry { return child.container }
+                return nil
+            }
+        )
         for (id, item) in byID where declared.contains(id) && sidecar.presentations[id] == nil {
             for existing in item.elements(forName: "presentation") { existing.detach() }
         }
@@ -418,7 +291,9 @@ public enum SidecarFile {
             for presentation in presentations { item.addChild(presentationElement(presentation)) }
         }
         for item in byID.values {
-            guard let child = item.attribute("container").flatMap(ContainerID.init), held.contains(child) else { continue }
+            guard let child = item.attribute("container").flatMap(ContainerID.init), held.contains(child) else {
+                continue
+            }
             item.removeAttribute(forName: "smd")
             item.set("smd", sidecar.children[child])
         }
@@ -505,7 +380,7 @@ public enum SidecarFile {
         return element
     }
 
-    private static func items(in root: XMLElement) -> [XMLElement] {
+    static func items(in root: XMLElement) -> [XMLElement] {
         root.elements(forName: "sequence").flatMap { $0.elements(forName: "item") }
             + root.elements(forName: "extras").flatMap { $0.elements(forName: "item") }
     }
@@ -523,32 +398,34 @@ public enum SidecarFileError: Error, Equatable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .unknownItem(let id): "The container has no item \(id) to hold a presentation or rules"
-        case .multipleRules: "More than one <rules> element names the same rules: two on the container, or two for one binding on an item"
-        case .inlineRules: "A <rules> element holds rules; it names a version file instead, as <rules path=\"rules\" activeVersion=\"1\"/>"
+        case .multipleRules:
+            "More than one <rules> element names the same rules: two on the container, or two for one binding on an item"
+        case .inlineRules:
+            "A <rules> element holds rules; it names a version file instead, as <rules path=\"rules\" activeVersion=\"1\"/>"
         }
     }
 }
 
 // MARK: - XML helpers
 
-private extension XMLElement {
+extension XMLElement {
     func set(_ name: String, _ value: String?) {
         guard let value else { return }
-        addAttribute(XMLNode.attribute(withName: name, stringValue: value) as! XMLNode)
+        addAttribute(XMLNode.attribute(named: name, value: value))
     }
 
     func attribute(_ name: String) -> String? {
         attribute(forName: name)?.stringValue
     }
 
-    func required(_ name: String) throws -> String {
+    fileprivate func required(_ name: String) throws -> String {
         guard let value = attribute(name) else {
             throw ContainerFileError.missingAttribute(element: self.name ?? "?", attribute: name)
         }
         return value
     }
 
-    func integer(_ name: String) throws -> Int {
+    fileprivate func integer(_ name: String) throws -> Int {
         let value = try required(name)
         guard let integer = Int(value) else {
             throw ContainerFileError.invalidValue(element: self.name ?? "?", attribute: name, value: value)
@@ -557,7 +434,7 @@ private extension XMLElement {
     }
 
     /// An integer from one: a version, or a chapter.
-    func counting(_ name: String) throws -> Int {
+    fileprivate func counting(_ name: String) throws -> Int {
         let value = try integer(name)
         guard value >= 1 else {
             throw ContainerFileError.invalidValue(element: self.name ?? "?", attribute: name, value: String(value))
@@ -566,7 +443,7 @@ private extension XMLElement {
     }
 
     /// An attribute that must be a UUID, kept as written.
-    func uuid(_ name: String) throws -> String {
+    fileprivate func uuid(_ name: String) throws -> String {
         let value = try required(name)
         guard UUID(uuidString: value) != nil else {
             throw ContainerFileError.invalidValue(element: self.name ?? "?", attribute: name, value: value)
@@ -576,25 +453,29 @@ private extension XMLElement {
 
     /// Two attributes that come together or not at all: nil for neither, and the missing one named
     /// when only one is given.
-    func pair(_ first: String, _ second: String) throws -> (String, String)? {
+    fileprivate func pair(_ first: String, _ second: String) throws -> (String, String)? {
         switch (attribute(first), attribute(second)) {
         case (nil, nil): return nil
-        case (let a?, let b?): return (a, b)
+        case (let firstValue?, let secondValue?): return (firstValue, secondValue)
         case (nil, _?): throw ContainerFileError.missingAttribute(element: self.name ?? "?", attribute: first)
         case (_?, nil): throw ContainerFileError.missingAttribute(element: self.name ?? "?", attribute: second)
         }
     }
 
     /// The one child of a name, nil for none, refused when there are more.
-    func single(_ child: String) throws -> XMLElement? {
+    fileprivate func single(_ child: String) throws -> XMLElement? {
         let found = elements(forName: child)
         guard found.count <= 1 else {
-            throw ContainerFileError.invalidValue(element: self.name ?? "?", attribute: child, value: "\(found.count) elements")
+            throw ContainerFileError.invalidValue(
+                element: self.name ?? "?",
+                attribute: child,
+                value: "\(found.count) elements"
+            )
         }
         return found.first
     }
 
-    func optionalInteger(_ name: String) throws -> Int? {
+    fileprivate func optionalInteger(_ name: String) throws -> Int? {
         guard let value = attribute(name) else { return nil }
         guard let integer = Int(value) else {
             throw ContainerFileError.invalidValue(element: self.name ?? "?", attribute: name, value: value)

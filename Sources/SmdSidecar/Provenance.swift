@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 the smddb project authors
 
-import Foundation
 import SmdKit
 
 /// Where a presentation came from: the binding it was made from, by id, and a copy of the
@@ -102,7 +101,11 @@ public struct Transform: Hashable, Sendable, Codable {
             case (let binding?, nil): subject = .binding(binding)
             case (nil, let container?): subject = .container(container)
             default:
-                throw DecodingError.dataCorruptedError(forKey: .binding, in: values, debugDescription: "a layer names exactly one of a binding and a container")
+                throw DecodingError.dataCorruptedError(
+                    forKey: .binding,
+                    in: values,
+                    debugDescription: "a layer names exactly one of a binding and a container"
+                )
             }
             version = try values.decode(Int.self, forKey: .version)
             digest = try values.decodeIfPresent(String.self, forKey: .digest)

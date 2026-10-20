@@ -17,5 +17,18 @@ jobs:
       - uses: swift-wire/setup-swift@v1
       # On Linux rather than macOS deliberately: the package has nothing Apple-only in it, and
       # the validator that will run here has to keep it that way.
+      - name: Build tests
+        # -v captures the compiler invocations SwiftLint's analyzer reads; redirected to a file to
+        # keep the log readable.
+        run: swift build --build-tests -v > build.log 2>&1
       - name: Test
-        run: swift test
+        run: swift test --skip-build
+      - name: Install SwiftLint
+        run: |
+          curl -sL https://github.com/realm/SwiftLint/releases/download/0.63.2/swiftlint_linux_amd64.zip -o swiftlint.zip
+          unzip -o swiftlint.zip -d /usr/local/bin
+          chmod +x /usr/local/bin/swiftlint
+      # On Linux, so that an import only Darwin's Foundation needs is reported here rather than
+      # kept because macOS happens to build with it.
+      - name: SwiftLint unused imports
+        run: swiftlint analyze --strict --quiet --compiler-log-path build.log

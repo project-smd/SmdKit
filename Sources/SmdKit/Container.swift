@@ -17,7 +17,11 @@ public struct ContainerID: Hashable, Sendable, Codable, LosslessStringConvertibl
     /// The string as an id, or nil when it is not one: the shape is checked, not the provenance,
     /// so an id minted by any tool that draws sixteen hex characters is accepted.
     public init?(_ string: String) {
-        guard string.count == 16, string.unicodeScalars.allSatisfy({ ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x61 && $0.value <= 0x66) }) else {
+        guard string.count == 16,
+            string.unicodeScalars.allSatisfy({
+                ($0.value >= 0x30 && $0.value <= 0x39) || ($0.value >= 0x61 && $0.value <= 0x66)
+            })
+        else {
             return nil
         }
         value = string
@@ -37,7 +41,9 @@ public struct ContainerID: Hashable, Sendable, Codable, LosslessStringConvertibl
     public init(from decoder: any Decoder) throws {
         let string = try decoder.singleValueContainer().decode(String.self)
         guard let id = ContainerID(string) else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Not a container id: \(string)"))
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "Not a container id: \(string)")
+            )
         }
         self = id
     }
@@ -56,9 +62,11 @@ public struct ItemID: Hashable, Sendable, Codable, LosslessStringConvertible {
     public let value: String
 
     public init?(_ string: String) {
-        guard !string.isEmpty, string.unicodeScalars.allSatisfy({
-            XMLText.carries($0) && $0 != "#" && $0 != "\t" && $0 != "\n" && $0 != "\r"
-        }) else {
+        guard !string.isEmpty,
+            string.unicodeScalars.allSatisfy({
+                XMLText.carries($0) && $0 != "#" && $0 != "\t" && $0 != "\n" && $0 != "\r"
+            })
+        else {
             return nil
         }
         value = string
@@ -70,7 +78,9 @@ public struct ItemID: Hashable, Sendable, Codable, LosslessStringConvertible {
     public init(from decoder: any Decoder) throws {
         let string = try decoder.singleValueContainer().decode(String.self)
         guard let id = ItemID(string) else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Not an item id: \(string)"))
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "Not an item id: \(string)")
+            )
         }
         self = id
     }
@@ -90,8 +100,8 @@ public struct Title: Hashable, Sendable, Codable, RawRepresentable, CustomString
     /// Decoding goes through this, so text a title would have to change to hold is refused.
     public init?(rawValue: String) {
         guard !rawValue.isEmpty,
-              rawValue.trimmingCharacters(in: .whitespacesAndNewlines) == rawValue,
-              rawValue.unicodeScalars.allSatisfy(XMLText.carries)
+            rawValue.trimmingCharacters(in: .whitespacesAndNewlines) == rawValue,
+            rawValue.unicodeScalars.allSatisfy(XMLText.carries)
         else {
             return nil
         }
@@ -481,7 +491,8 @@ public struct EntryType: Hashable, Sendable, Codable, RawRepresentable, CustomSt
     /// grouping extras by type reads them without translation. An extra may still have any other
     /// type, `movie` or one named nowhere here: these are the types offered, not the ones allowed.
     public static let extraTypes: [EntryType] = [
-        .featurette, .behindTheScenes, .deletedScene, .interview, .trailer, .scene, .short, .clip, .themeSong, .themeVideo,
+        .featurette, .behindTheScenes, .deletedScene, .interview, .trailer, .scene, .short, .clip, .themeSong,
+        .themeVideo,
     ]
 
     public var description: String { rawValue }

@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 the smddb project authors
 
-import Foundation
 import SmdKit
+
+// Darwin's Foundation holds the XML types; elsewhere FoundationXML does, and nothing else of
+// Foundation is used here.
 #if canImport(FoundationXML)
 import FoundationXML
+#else
+import Foundation
 #endif
 
 /// A `<rules>` reference: which version of the encoding rules a library applies to what a container
@@ -47,10 +51,10 @@ public struct SidecarRules: Hashable, Sendable, Codable {
     func element(binding: String? = nil) -> XMLElement {
         let element = XMLElement(name: "rules")
         if let binding {
-            element.addAttribute(XMLNode.attribute(withName: "binding", stringValue: binding) as! XMLNode)
+            element.addAttribute(XMLNode.attribute(named: "binding", value: binding))
         }
-        element.addAttribute(XMLNode.attribute(withName: "path", stringValue: path) as! XMLNode)
-        element.addAttribute(XMLNode.attribute(withName: "activeVersion", stringValue: String(activeVersion)) as! XMLNode)
+        element.addAttribute(XMLNode.attribute(named: "path", value: path))
+        element.addAttribute(XMLNode.attribute(named: "activeVersion", value: String(activeVersion)))
         return element
     }
 }
