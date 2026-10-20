@@ -56,6 +56,29 @@ public struct LocalRepository: ContainerDatabase {
         try ContainerFile.data(for: container).write(to: fileURL(for: container.id), options: .atomic)
     }
 
+    /// Mints, and mints again while a file is named for the id. 64 random bits make a second try a
+    /// formality; the check is what makes the answer true of the clone rather than merely likely.
+    public func provisionalID() async throws -> ContainerID {
+        var id: ContainerID
+        repeat {
+            id = ContainerID.mint()
+        } while FileManager.default.fileExists(atPath: fileURL(for: id).path)
+        return id
+    }
+
+    /// Writes each container as `save(_:)` does, in the order given, and commits nothing. A
+    /// file-system error part way leaves the files already written, each whole: in a clone that is
+    /// a working-tree change the user can see and discard.
+    public func contribute(_ containers: [Container]) async throws -> Contribution {
+        try await checkContribution(containers)
+        var written: [URL] = []
+        for container in containers {
+            try await save(container)
+            written.append(fileURL(for: container.id))
+        }
+        return .written(written)
+    }
+
     /// A file is named for its id, so a file named for anything else is refused rather than read
     /// under a name the document did not claim.
     private func read(_ url: URL) throws -> Container {

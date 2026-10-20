@@ -44,9 +44,12 @@ swift test
   each with only its own fields.
 - `ContainerFile` reads and writes one container as XML. Every container it writes reads back.
 - `ContainerDatabase` is what a client asks: every container, one by id, the ones a provider's
-  id names, and save. `roots()` — what nothing holds — is derived from those.
+  id names, and save; and the two calls a service would answer, a provisional id for a new
+  container and a contribution of containers offered to smddb, refused whole when a container
+  names one neither the database nor the contribution holds. `roots()` — what nothing holds — is
+  derived from those.
 - `LocalRepository` is the phase 1 implementation: a folder that is a clone of the data
-  repository.
+  repository. It mints a provisional id itself, and contributes by writing files the user commits.
 
 - `SmdSidecar`, a target of its own, is the `.smd` as a library keeps it: `Sidecar` is a
   `Container` plus which file holds each presentation of each item — with the binding it was made

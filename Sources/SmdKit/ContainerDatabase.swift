@@ -21,6 +21,16 @@ public protocol ContainerDatabase: Sendable {
 
     /// Creates the container, or replaces the one with its id.
     func save(_ container: Container) async throws
+
+    /// An id for a container nobody has yet, provisional until smddb accepts a container carrying
+    /// it. Nothing about the id records that: it is a `ContainerID` like any other, and a caller
+    /// keeps no list of which are provisional.
+    func provisionalID() async throws -> ContainerID
+
+    /// Offers containers to smddb, refused whole before anything is written when
+    /// `checkContribution(_:)` refuses them. Unlike `save(_:)`, which is a clone's own writer,
+    /// this is the call a service answers too.
+    func contribute(_ containers: [Container]) async throws -> Contribution
 }
 
 extension ContainerDatabase {
