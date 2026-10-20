@@ -962,6 +962,23 @@ struct SmdKitTests {
         )
         try await flat.settle()
         #expect(try await flat.containers().count == 2)
+
+        // Two containers each holding the other, as only a hand edit makes them: no walk from the top
+        // reaches them, so each is put at the top for the validator to find, rather than lost.
+        let (ring, ringFolder) = Self.repository()
+        defer { try? FileManager.default.removeItem(at: ringFolder) }
+        try FileManager.default.createDirectory(at: ring.containersURL, withIntermediateDirectories: true)
+        var left = Container(id: ContainerID("00000000000000d1")!, type: .series, title: title("Left"))
+        var right = Container(id: ContainerID("00000000000000d2")!, type: .series, title: title("Right"))
+        left.sequences = [Sequence(items: [.child(Entry.Child(id: item("right"), container: right.id))])]
+        right.sequences = [Sequence(items: [.child(Entry.Child(id: item("left"), container: left.id))])]
+        for container in [left, right] {
+            try ContainerFile.data(for: container).write(
+                to: ring.containersURL.appendingPathComponent("\(container.id).xml")
+            )
+        }
+        try await ring.settle()
+        #expect(try Self.tree(ring) == ["Left [00000000000000d1]", "Right [00000000000000d2]"])
     }
 
     @Test func aContainerIsFoundByItsIdWhereverItIs() async throws {
@@ -1031,13 +1048,31 @@ struct SmdKitTests {
         )
 
         // A contribution that leaves one held twice is refused whole.
-        await #expect(
-            throws: ContributionError.twoHomes([
-                ContributionError.Homes(child: season.id, homes: [first.id, second.id])
-            ])
-        ) {
-            try await repository.contribute([first])
-        }
+        let twice = ContributionError.twoHomes([
+            ContributionError.Homes(child: season.id, homes: [first.id, second.id])
+        ])
+        await #expect(throws: twice) { try await repository.contribute([first]) }
+
+        // Each refusal says what it names, in words.
+        let held = "\(season.id) would be held by \(first.id) and \(second.id); a container has one home"
+        #expect(twice.localizedDescription == held)
+        #expect(
+            LocalRepositoryError.twoHomes(child: season.id, homes: [first.id, second.id]).localizedDescription == held
+        )
+        #expect(
+            LocalRepositoryError.cycle(season.id).localizedDescription
+                == "\(season.id) would hold one of its own ancestors"
+        )
+        let notes = repository.containersURL.appendingPathComponent("notes")
+        #expect(
+            LocalRepositoryError.unexpectedFile(notes).localizedDescription.hasPrefix(
+                "notes is in the containers folder"
+            )
+        )
+        #expect(
+            LocalRepositoryError.unreadable(notes, .notAContainer).localizedDescription
+                == "notes: \(ContainerFileError.notAContainer.localizedDescription)"
+        )
     }
 
     @Test func slugsAreMadeFromTitles() {

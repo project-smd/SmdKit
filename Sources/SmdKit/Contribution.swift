@@ -108,11 +108,8 @@ extension ContainerDatabase {
 
         // One home each, `StructuredContainers.md`'s principle 5, with the contribution in place of
         // what the database holds under the same ids.
-        var merged = Dictionary(
-            try await self.containers().map { ($0.id, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        for container in containers { merged[container.id] = container }
+        var merged: [ContainerID: Container] = [:]
+        for container in try await self.containers() + containers { merged[container.id] = container }
         var homes: [ContainerID: [ContainerID]] = [:]
         for container in merged.values.sorted(by: { $0.id.value < $1.id.value }) {
             for child in Set(container.childContainerIDs) { homes[child, default: []].append(container.id) }
