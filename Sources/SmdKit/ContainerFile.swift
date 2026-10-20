@@ -2,6 +2,7 @@
 // Copyright (c) 2026 the smddb project authors
 
 import Foundation
+
 #if canImport(FoundationXML)
 import FoundationXML
 #endif
@@ -134,27 +135,7 @@ public enum ContainerFile {
     /// Reads a container document. `expecting` is the id the file's name carries, when it has one;
     /// a document whose root disagrees with it is refused.
     public static func container(from data: Data, expecting expected: ContainerID? = nil) throws -> Container {
-        // Zero bytes before anything parses them: a write cut short, not a document. On Linux the
-        // event parser calls them well-formed and the document parser then crashes on them, so
-        // the check below cannot be the one that refuses them.
-        guard !data.isEmpty else { throw ContainerFileError.malformed("the document is empty") }
-        // Well-formedness first, through the event parser. The document parser on Linux is
-        // libxml2 in recovery mode: a truncated file comes back as a document with the tags
-        // closed for it, which is not what was written and must not be read as if it were. The
-        // event parser notices on both platforms, but reports it differently — a false return
-        // on Darwin, a true return with `parserError` set on Linux — so both are checked.
-        let parser = XMLParser(data: data)
-        let parsed = parser.parse()
-        if let error = parser.parserError {
-            throw ContainerFileError.malformed(error.localizedDescription)
-        }
-        guard parsed else { throw ContainerFileError.malformed("not well-formed XML") }
-        let document: XMLDocument
-        do {
-            document = try XMLDocument(data: data, options: [])
-        } catch {
-            throw ContainerFileError.malformed(error.localizedDescription)
-        }
+        let document = try document(from: data)
         guard let root = document.rootElement(), root.name == "container" else {
             throw ContainerFileError.notAContainer
         }
@@ -206,29 +187,10 @@ public enum ContainerFile {
         }
 
         if let features = root.child("features") {
-            container.features = try features.elements(forName: "feature").map { element in
-                Feature(
-                    id: try element.required("id"),
-                    type: FeatureType(rawValue: try element.required("type")),
-                    title: element.text("title"),
-                    participants: try element.elements(forName: "participant").map {
-                        Participant(name: try $0.required("name"), role: $0.attribute("role"))
-                    }
-                )
-            }
+            container.features = try features.elements(forName: "feature").map(feature)
         }
 
-        container.sequences = try root.elements(forName: "sequence").map { element in
-            var sequence = Sequence(id: element.attribute("id"))
-            if let exploded = element.attribute("exploded") {
-                guard let value = Exploded(rawValue: exploded) else {
-                    throw ContainerFileError.invalidValue(element: "sequence", attribute: "exploded", value: exploded)
-                }
-                sequence.exploded = value
-            }
-            sequence.items = try element.elements(forName: "item").map(item)
-            return sequence
-        }
+        container.sequences = try root.elements(forName: "sequence").map(sequence)
 
         if let extras = root.child("extras") {
             container.extrasAnchor = extras.attribute("anchor")
@@ -236,6 +198,53 @@ public enum ContainerFile {
         }
 
         return container
+    }
+
+    /// The document, once the bytes are known to be well-formed XML.
+    private static func document(from data: Data) throws -> XMLDocument {
+        // Zero bytes before anything parses them: a write cut short, not a document. On Linux the
+        // event parser calls them well-formed and the document parser then crashes on them, so
+        // the check below cannot be the one that refuses them.
+        guard !data.isEmpty else { throw ContainerFileError.malformed("the document is empty") }
+        // Well-formedness first, through the event parser. The document parser on Linux is
+        // libxml2 in recovery mode: a truncated file comes back as a document with the tags
+        // closed for it, which is not what was written and must not be read as if it were. The
+        // event parser notices on both platforms, but reports it differently — a false return
+        // on Darwin, a true return with `parserError` set on Linux — so both are checked.
+        let parser = XMLParser(data: data)
+        let parsed = parser.parse()
+        if let error = parser.parserError {
+            throw ContainerFileError.malformed(error.localizedDescription)
+        }
+        guard parsed else { throw ContainerFileError.malformed("not well-formed XML") }
+        do {
+            return try XMLDocument(data: data, options: [])
+        } catch {
+            throw ContainerFileError.malformed(error.localizedDescription)
+        }
+    }
+
+    private static func feature(_ element: XMLElement) throws -> Feature {
+        Feature(
+            id: try element.required("id"),
+            type: FeatureType(rawValue: try element.required("type")),
+            title: element.text("title"),
+            participants: try element.elements(forName: "participant").map {
+                Participant(name: try $0.required("name"), role: $0.attribute("role"))
+            }
+        )
+    }
+
+    private static func sequence(_ element: XMLElement) throws -> Sequence {
+        var sequence = Sequence(id: element.attribute("id"))
+        if let exploded = element.attribute("exploded") {
+            guard let value = Exploded(rawValue: exploded) else {
+                throw ContainerFileError.invalidValue(element: "sequence", attribute: "exploded", value: exploded)
+            }
+            sequence.exploded = value
+        }
+        sequence.items = try element.elements(forName: "item").map(item)
+        return sequence
     }
 
     private static func item(_ element: XMLElement) throws -> Entry {
@@ -274,12 +283,30 @@ public enum ContainerFile {
             guard let child = ContainerID(childValue) else {
                 throw ContainerFileError.invalidValue(element: "item", attribute: "container", value: childValue)
             }
-            return .child(Entry.Child(id: id, container: child, optional: optional, title: title, outline: outline, externalRefs: externalRefs))
+            return .child(
+                Entry.Child(
+                    id: id,
+                    container: child,
+                    optional: optional,
+                    title: title,
+                    outline: outline,
+                    externalRefs: externalRefs
+                )
+            )
         }
         if let childValue {
             throw ContainerFileError.invalidValue(element: "item", attribute: "container", value: childValue)
         }
-        return .leaf(Entry.Leaf(id: id, type: type, optional: optional, title: title, outline: outline, externalRefs: externalRefs))
+        return .leaf(
+            Entry.Leaf(
+                id: id,
+                type: type,
+                optional: optional,
+                title: title,
+                outline: outline,
+                externalRefs: externalRefs
+            )
+        )
     }
 }
 
@@ -298,10 +325,12 @@ public enum ContainerFileError: Error, Equatable, LocalizedError {
         switch self {
         case .malformed(let detail): "Not well-formed XML: \(detail)"
         case .notAContainer: "The document is not rooted at <container>"
-        case .unsupportedFormat(let format): "Container format \(format) is newer than this reader (format \(ContainerFile.format))"
+        case .unsupportedFormat(let format):
+            "Container format \(format) is newer than this reader (format \(ContainerFile.format))"
         case .missingAttribute(let element, let attribute): "<\(element)> has no \(attribute) attribute"
         case .missingElement(let element, let child): "<\(element)> has no <\(child)>"
-        case .invalidValue(let element, let attribute, let value): "<\(element) \(attribute)=\"\(value)\"> is not a valid \(attribute)"
+        case .invalidValue(let element, let attribute, let value):
+            "<\(element) \(attribute)=\"\(value)\"> is not a valid \(attribute)"
         case .invalidText(let element, let value): "<\(element)>\(value)</\(element)> is not a valid \(element)"
         case .idMismatch(let file, let document): "The file is named \(file) but its <container> says \(document)"
         case .refWithIdentity(let ref): "<item ref=\"\(ref)\"> also carries an id or a type; a ref has neither"
@@ -311,18 +340,18 @@ public enum ContainerFileError: Error, Equatable, LocalizedError {
 
 // MARK: - XML helpers
 
-private extension XMLElement {
-    func set(_ name: String, _ value: String?) {
+extension XMLElement {
+    fileprivate func set(_ name: String, _ value: String?) {
         guard let value else { return }
-        addAttribute(XMLNode.attribute(withName: name, stringValue: XMLText.attribute(value)) as! XMLNode)
+        addAttribute(XMLNode.attribute(named: name, value: XMLText.attribute(value)))
     }
 
-    func addText(_ name: String, _ value: String?) {
+    fileprivate func addText(_ name: String, _ value: String?) {
         guard let value = value.map(XMLText.text), !value.isEmpty else { return }
         addChild(XMLElement(name: name, stringValue: value))
     }
 
-    func addExternalRefs(_ refs: [ExternalRef]) {
+    fileprivate func addExternalRefs(_ refs: [ExternalRef]) {
         for ref in refs {
             let element = XMLElement(name: "externalRef")
             element.set("provider", ref.provider.rawValue)
@@ -331,18 +360,18 @@ private extension XMLElement {
         }
     }
 
-    func attribute(_ name: String) -> String? {
+    fileprivate func attribute(_ name: String) -> String? {
         attribute(forName: name)?.stringValue
     }
 
-    func required(_ name: String) throws -> String {
+    fileprivate func required(_ name: String) throws -> String {
         guard let value = attribute(name) else {
             throw ContainerFileError.missingAttribute(element: self.name ?? "?", attribute: name)
         }
         return value
     }
 
-    func integer(_ name: String) throws -> Int {
+    fileprivate func integer(_ name: String) throws -> Int {
         let value = try required(name)
         guard let integer = Int(value) else {
             throw ContainerFileError.invalidValue(element: self.name ?? "?", attribute: name, value: value)
@@ -350,7 +379,7 @@ private extension XMLElement {
         return integer
     }
 
-    func bool(_ name: String) throws -> Bool? {
+    fileprivate func bool(_ name: String) throws -> Bool? {
         guard let value = attribute(name) else { return nil }
         switch value {
         case "true": return true
@@ -359,22 +388,22 @@ private extension XMLElement {
         }
     }
 
-    func child(_ name: String) -> XMLElement? {
+    fileprivate func child(_ name: String) -> XMLElement? {
         elements(forName: name).first
     }
 
-    func text(_ name: String) -> String? {
+    fileprivate func text(_ name: String) -> String? {
         child(name)?.stringValue.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
 
-    func requiredText(_ name: String) throws -> String {
+    fileprivate func requiredText(_ name: String) throws -> String {
         guard let value = text(name) else {
             throw ContainerFileError.missingElement(element: self.name ?? "?", child: name)
         }
         return value
     }
 
-    func externalRefs() throws -> [ExternalRef] {
+    fileprivate func externalRefs() throws -> [ExternalRef] {
         try elements(forName: "externalRef").map {
             ExternalRef(provider: Provider(rawValue: try $0.required("provider")), value: try $0.required("value"))
         }

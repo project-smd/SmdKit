@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 the smddb project authors
 
-import Foundation
+// FoundationXML exists only where Foundation is split into modules, and there the lighter
+// FoundationEssentials is all the rest of this file needs.
 #if canImport(FoundationXML)
+import FoundationEssentials
 import FoundationXML
+#else
+import Foundation
 #endif
 
 /// The bytes of a document, written the same way on every platform.
@@ -122,7 +126,10 @@ package enum XMLWriter {
     }
 
     private static func isWhitespace(_ node: XMLNode) -> Bool {
-        node.kind == .text && (node.stringValue ?? "").allSatisfy { $0 == " " || $0 == "\t" || $0 == "\n" || $0 == "\r\n" || $0 == "\r" }
+        node.kind == .text
+            && (node.stringValue ?? "").allSatisfy {
+                $0 == " " || $0 == "\t" || $0 == "\n" || $0 == "\r\n" || $0 == "\r"
+            }
     }
 
     private static func escaped(_ string: String, inAttribute: Bool) -> String {
@@ -141,5 +148,17 @@ package enum XMLWriter {
             }
         }
         return result
+    }
+}
+
+extension XMLNode {
+    /// An attribute node, typed as one. Foundation's factory returns `Any` on both platforms — a
+    /// leftover of its Objective-C signature — though what it makes is always an `XMLNode`, so the
+    /// failure branch is unreachable and not an error any reader or writer reports.
+    package static func attribute(named name: String, value: String) -> XMLNode {
+        guard let node = attribute(withName: name, stringValue: value) as? XMLNode else {
+            preconditionFailure("XMLNode.attribute(withName:stringValue:) did not return an XMLNode")
+        }
+        return node
     }
 }

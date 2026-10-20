@@ -34,7 +34,8 @@ public struct LocalRepository: ContainerDatabase {
         } catch CocoaError.fileReadNoSuchFile {
             return []
         }
-        return try files
+        return
+            try files
             .filter { $0.pathExtension == ContainerFile.fileExtension }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
             .map(read)
@@ -75,7 +76,8 @@ public enum LocalRepositoryError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .unexpectedFile(let url): "\(url.lastPathComponent) is in the containers folder but is not named for a container id"
+        case .unexpectedFile(let url):
+            "\(url.lastPathComponent) is in the containers folder but is not named for a container id"
         case .unreadable(let url, let error): "\(url.lastPathComponent): \(error.localizedDescription)"
         }
     }
