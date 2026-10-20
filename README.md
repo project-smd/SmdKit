@@ -69,19 +69,44 @@ the ingestion flow, when their shape is known from use rather than from the prop
 `Hosting.md` says the one thing that is expensive to change is the repository layout, so it is
 stated here rather than left implicit in the code.
 
-**One file per container, at `containers/<id>.xml`.** The id is sixteen lowercase hex
+**One folder per container, laid out as the tree of homes.** `containers/` holds a folder for each
+container nothing holds, and each container's folder holds its document as `container.xml` and the
+folders of the containers it holds as children:
+
+```
+containers/
+  Doctor Who (1963) [6a1f0c2e9b7d4e3a]/
+    container.xml
+    13 - Season 13 [00000000000000a3]/
+      container.xml
+      03 - Pyramids of Mars [3b9e01d4c7a25f60]/
+        container.xml
+```
+
+A folder is named for the container's title, written as a library writes a folder name, and its id
+in square brackets. A child's name begins with its position among its home's children, padded to two
+digits or as many as the count needs, so that a listing shows a season's serials in their order
+rather than their titles'. The layout is `Hosting.md`'s, which argues it: the repository is edited by
+hand in phase 1, and a flat folder of ids cannot be navigated. Its cost is the one the flat layout
+was chosen to avoid. A path that encodes the parent changes when the parent does, so a retitle
+renames a folder, a new home moves a subtree, and an insertion renumbers the siblings after it.
+`LocalRepository` makes every one of those moves itself, on every save, so the tree always follows
+the data. A clone in the flat layout is converted by its first save, or by `settle()`.
+
+**The id is the identity, and the name is for people.** The id is sixteen lowercase hex
 characters — 64 random bits — minted when the container is created and never reissued, as the
 database proposal specifies. Random rather than a slug because a slug has to be unique across
-the whole database, which makes every "season-14" a negotiation, and because a path that
-encodes the parent would change when the parent did. Random rather than sequential because
+the whole database, which makes every "season-14" a negotiation. Random rather than sequential because
 a clone of the repository mints ids without asking anyone. Sixteen characters rather than a
 UUID because the corpus is thousands of files, not billions, and an id is read in refs and
-file listings: at ten million containers the chance of any two colliding is about one in four
-hundred thousand, and a collision is two files wanting one name, which a pull request shows.
+folder names: at ten million containers the chance of any two colliding is about one in four
+hundred thousand, and a collision is two folders for one id, which the listing refuses.
 The reader checks the shape and not the provenance, so any tool that draws sixteen hex
-characters mints a valid id. A review reads the file's `<title>`, not its name. The id is also the root
-element's `id` attribute, and a file whose two disagree is refused: the format's usual trade,
-duplicate for legibility and verify mechanically.
+characters mints a valid id. A container is found by the id at the end of its folder's name, never by
+its path, and the id is also the root element's `id` attribute: a document whose id disagrees with
+its folder's is refused, the format's usual trade, duplicate for legibility and verify mechanically.
+The reader does not check a folder's position or title; the validator reports a stale one, and the
+next save fixes it.
 
 **The file is the sidecar's `<container>` element with a library's facts taken out and the
 database's put in.** Read against an `.smd`, the differences are exactly the ones the database
@@ -103,8 +128,10 @@ sidecar spells it, so writing an `.smd` from one of these is a projection and no
 translation. Elements with no content are omitted; `listed` is written only when false.
 
 A container's parent is not recorded on the container. It is derived: a container is a root
-when no other container's item names it. That is one directory read, which principle 1 of the
-database proposal keeps small.
+when no other container's item names it, and its home is the one container whose item does — a
+save that would give it a second refuses. The folders show the tree, but the documents are what
+decide it, and reading them is one walk of the tree, which principle 1 of the database proposal keeps
+small.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
