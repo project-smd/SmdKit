@@ -773,6 +773,17 @@ struct SmdKitTests {
             try await repository.contribute([tales])
         }
 
+        // Each refusal says what it names, in words.
+        #expect(
+            ContributionError.missing([ContributionError.Missing(container: tales.id, names: elsewhere)])
+                .localizedDescription
+                == "\(tales.id) names \(elsewhere), which neither the database nor the contribution holds"
+        )
+        #expect(
+            ContributionError.duplicate([tales.id]).localizedDescription
+                == "The contribution carries more than one container for \(tales.id)"
+        )
+
         // One id twice is refused, and writes nothing.
         let film = Container(type: .movie, title: title("Alien"))
         await #expect(throws: ContributionError.duplicate([film.id])) {

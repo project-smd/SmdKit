@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 the smddb project authors
 
+// URL and LocalizedError are FoundationEssentials' where Foundation is split into modules.
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
 import Foundation
+#endif
 
 /// What the database answers about containers offered to it.
 ///

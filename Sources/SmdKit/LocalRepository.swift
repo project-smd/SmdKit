@@ -59,10 +59,10 @@ public struct LocalRepository: ContainerDatabase {
     /// Mints, and mints again while a file is named for the id. 64 random bits make a second try a
     /// formality; the check is what makes the answer true of the clone rather than merely likely.
     public func provisionalID() async throws -> ContainerID {
-        var id = ContainerID.mint()
-        while FileManager.default.fileExists(atPath: fileURL(for: id).path) {
+        var id: ContainerID
+        repeat {
             id = ContainerID.mint()
-        }
+        } while FileManager.default.fileExists(atPath: fileURL(for: id).path)
         return id
     }
 
