@@ -611,7 +611,12 @@ struct SmdKitTests {
         try await repository.save(Self.talons)
 
         #expect(
-            FileManager.default.fileExists(atPath: folder.appendingPathComponent("containers/\(series.id).xml").path)
+            FileManager.default.fileExists(
+                atPath: folder.appendingPathComponent(
+                    "containers/Doctor Who (1963) [\(series.id)]/01 - Season 14 [\(season.id)]/container.xml"
+                ).path
+            ),
+            "the season in its home's folder, numbered"
         )
         #expect(try await repository.containers().count == 3)
         #expect(try await repository.container(Self.talons.id) == Self.talons)
@@ -620,13 +625,23 @@ struct SmdKitTests {
         // Roots are what nothing holds: the season is inside the series, Talons is loose.
         #expect(Set(try await repository.roots().map(\.id)) == [series.id, Self.talons.id])
 
-        // Saving again replaces, and a stray file is refused with its name rather than skipped.
+        // Saving again replaces, and a stray file or folder is refused with its name rather than skipped.
         series.title = title("Doctor Who")
         try await repository.save(series)
         #expect(try await repository.container(series.id)?.title == title("Doctor Who"))
-        try Data("<container/>".utf8).write(to: folder.appendingPathComponent("containers/notes.xml"))
+        let notes = folder.appendingPathComponent("containers/notes.xml")
+        try Data("<container/>".utf8).write(to: notes)
         await #expect(throws: LocalRepositoryError.self) {
             try await repository.containers()
+        }
+        try FileManager.default.removeItem(at: notes)
+        let stray = folder.appendingPathComponent("containers/notes", isDirectory: true)
+        try FileManager.default.createDirectory(at: stray, withIntermediateDirectories: true)
+        do {
+            _ = try await repository.containers()
+            Issue.record("a folder named for no id was skipped")
+        } catch LocalRepositoryError.unexpectedFile(let url) {
+            #expect(url.lastPathComponent == "notes")
         }
     }
 
@@ -645,12 +660,14 @@ struct SmdKitTests {
         let kept = Container(type: .movie, title: title("Kept"))
         try await repository.save(kept)
         let empty = ContainerID("0123456789abcdef")!
-        try Data().write(to: repository.fileURL(for: empty))
+        let emptyFolder = repository.containersURL.appendingPathComponent("Cut Short [\(empty)]", isDirectory: true)
+        try FileManager.default.createDirectory(at: emptyFolder, withIntermediateDirectories: true)
+        try Data().write(to: emptyFolder.appendingPathComponent(LocalRepository.containerFileName))
         do {
             _ = try await repository.containers()
             Issue.record("a zero-byte file was read")
         } catch LocalRepositoryError.unreadable(let url, .malformed) {
-            #expect(url.lastPathComponent == "\(empty).xml")
+            #expect(url.deletingLastPathComponent().lastPathComponent == "Cut Short [\(empty)]")
         }
         await #expect(throws: LocalRepositoryError.self) { try await repository.container(empty) }
     }
@@ -662,12 +679,14 @@ struct SmdKitTests {
         let a = ContainerID("0123456789abcdef")!
         let document = Container(id: ContainerID("fedcba9876543210")!, type: .movie, title: title("T"))
         try await repository.save(document)
-        try FileManager.default.moveItem(at: repository.fileURL(for: document.id), to: repository.fileURL(for: a))
+        let saved = try #require(try repository.url(of: document.id)).deletingLastPathComponent()
+        let renamed = repository.containersURL.appendingPathComponent("T [\(a)]", isDirectory: true)
+        try FileManager.default.moveItem(at: saved, to: renamed)
         do {
             _ = try await repository.containers()
-            Issue.record("a file named for one id holding another was read")
+            Issue.record("a folder named for one id holding another was read")
         } catch LocalRepositoryError.unreadable(let url, .idMismatch(file: a, document: document.id)) {
-            #expect(url.lastPathComponent == "\(a).xml")
+            #expect(url.deletingLastPathComponent().lastPathComponent == "T [\(a)]")
         }
     }
 
@@ -688,7 +707,7 @@ struct SmdKitTests {
         // Replaced on disk as an editor or a git pull would, not through the repository.
         container.title = title("After")
         container.externalRefs = [ExternalRef(provider: .tmdb, value: "2")]
-        try ContainerFile.data(for: container).write(to: repository.fileURL(for: container.id))
+        try ContainerFile.data(for: container).write(to: try #require(try repository.url(of: container.id)))
         #expect(try await repository.container(container.id)?.title == title("After"))
         #expect(try await repository.containers().map(\.title) == [title("After")])
         #expect(try await repository.containers(matching: ExternalRef(provider: .tmdb, value: "1")).isEmpty)
@@ -729,7 +748,7 @@ struct SmdKitTests {
 
         let id = try await repository.provisionalID()
         #expect(id != Self.talons.id)
-        #expect(!FileManager.default.fileExists(atPath: repository.fileURL(for: id).path))
+        #expect(try repository.url(of: id) == nil)
         #expect(try FileManager.default.contentsOfDirectory(atPath: repository.containersURL.path) == before)
     }
 
@@ -752,7 +771,9 @@ struct SmdKitTests {
         // Carried with it, it is accepted.
         #expect(
             try await repository.contribute([series, season])
-                == .written([repository.fileURL(for: series.id), repository.fileURL(for: season.id)])
+                == .written([
+                    try #require(try repository.url(of: series.id)), try #require(try repository.url(of: season.id)),
+                ])
         )
 
         // A ref into a container nobody holds is refused as a child is, and every failure is named.
@@ -802,11 +823,221 @@ struct SmdKitTests {
         let new = Container(id: try await repository.provisionalID(), type: .movie, title: title("Aliens"))
 
         let contribution = try await repository.contribute([new, held])
-        #expect(contribution == .written([repository.fileURL(for: new.id), repository.fileURL(for: held.id)]))
+        #expect(
+            contribution
+                == .written([
+                    try #require(try repository.url(of: new.id)), try #require(try repository.url(of: held.id)),
+                ])
+        )
         #expect(try await repository.container(new.id) == new)
         #expect(try await repository.container(held.id)?.year == 1979)
         // Nothing but the containers' files: the folder need not be a checkout, and nothing commits.
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == [LocalRepository.containersFolder])
+    }
+
+    /// A repository in a fresh folder, removed by the caller.
+    private static func repository() -> (LocalRepository, URL) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SmdKitTests-\(UUID().uuidString)")
+        return (LocalRepository(root: folder), folder)
+    }
+
+    /// The tree under `containers/`, as folder paths relative to it, in name order.
+    private static func tree(_ repository: LocalRepository) throws -> [String] {
+        let base = repository.containersURL.path
+        guard let walker = FileManager.default.enumerator(atPath: base) else { return [] }
+        return (walker.allObjects as? [String] ?? []).filter { path in
+            var isDirectory: ObjCBool = false
+            FileManager.default.fileExists(atPath: base + "/" + path, isDirectory: &isDirectory)
+            return isDirectory.boolValue
+        }
+        .sorted()
+    }
+
+    private static func series(_ id: String, holding seasons: [Container]) -> Container {
+        var series = Container(
+            id: ContainerID(id)!,
+            type: .series,
+            title: title("Doctor Who"),
+            year: 1963,
+            yearInTitle: true
+        )
+        series.sequences = [
+            Sequence(
+                id: "seasons",
+                items: seasons.enumerated().map {
+                    .child(Entry.Child(id: item("s\($0.offset)"), container: $0.element.id))
+                }
+            )
+        ]
+        return series
+    }
+
+    @Test func theRepositoryIsLaidOutAsTheTreeOfHomes() async throws {
+        let (repository, folder) = Self.repository()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let season12 = Container(id: ContainerID("00000000000000a2")!, type: .season, title: title("Season 12"))
+        let season13 = Container(id: ContainerID("00000000000000a3")!, type: .season, title: title("Season 13"))
+        let series = Self.series("00000000000000a1", holding: [season12, season13])
+        for container in [series, season12, season13] { try await repository.save(container) }
+        #expect(
+            try Self.tree(repository) == [
+                "Doctor Who (1963) [00000000000000a1]",
+                "Doctor Who (1963) [00000000000000a1]/01 - Season 12 [00000000000000a2]",
+                "Doctor Who (1963) [00000000000000a1]/02 - Season 13 [00000000000000a3]",
+            ]
+        )
+
+        // A title no filesystem takes is written as a library writes it, and one of which nothing
+        // survives leaves the id alone.
+        let covenant = Container(id: ContainerID("00000000000000b1")!, type: .movie, title: title("Alien: Covenant"))
+        try await repository.save(covenant)
+        #expect(try Self.tree(repository).contains("Alien- Covenant [00000000000000b1]"))
+        #expect(
+            LocalRepository.folderName(for: Container(id: covenant.id, type: .movie, title: title("...")))
+                == "[00000000000000b1]"
+        )
+
+        // A hundred children or more widen the padding for them all.
+        #expect(LocalRepository.folderName(for: season12, position: 1, of: 120) == "001 - Season 12 [00000000000000a2]")
+        #expect(
+            LocalRepository.folderName(for: season12, position: 120, of: 120) == "120 - Season 12 [00000000000000a2]"
+        )
+        #expect(LocalRepository.folderName(for: season12, position: 3, of: 9) == "03 - Season 12 [00000000000000a2]")
+    }
+
+    @Test func aSaveSettlesTheLayout() async throws {
+        let (repository, folder) = Self.repository()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let season12 = Container(id: ContainerID("00000000000000a2")!, type: .season, title: title("Season 12"))
+        let season13 = Container(id: ContainerID("00000000000000a3")!, type: .season, title: title("Season 13"))
+
+        // The season first, then the series that holds it: the season moves beneath.
+        try await repository.save(season13)
+        var series = Self.series("00000000000000a1", holding: [season13])
+        try await repository.save(series)
+        #expect(
+            try Self.tree(repository).last == "Doctor Who (1963) [00000000000000a1]/01 - Season 13 [00000000000000a3]"
+        )
+
+        // Retitled, the series' folder is renamed with the season inside it, unchanged.
+        let seasonFile = try Data(contentsOf: try #require(try repository.url(of: season13.id)))
+        series.title = title("Doctor Who (Classic)")
+        series.yearInTitle = false
+        try await repository.save(series)
+        #expect(try Self.tree(repository).first == "Doctor Who (Classic) [00000000000000a1]")
+        #expect(try Data(contentsOf: try #require(try repository.url(of: season13.id))) == seasonFile)
+
+        // Season 12 inserted before it renumbers Season 13.
+        series.sequences[0].items.insert(.child(Entry.Child(id: item("s12"), container: season12.id)), at: 0)
+        try await repository.save(series)
+        try await repository.save(season12)
+        #expect(
+            try Self.tree(repository) == [
+                "Doctor Who (Classic) [00000000000000a1]",
+                "Doctor Who (Classic) [00000000000000a1]/01 - Season 12 [00000000000000a2]",
+                "Doctor Who (Classic) [00000000000000a1]/02 - Season 13 [00000000000000a3]",
+            ]
+        )
+
+        // A clone in the flat layout is converted by settle(), and one in place is left alone.
+        let (flat, flatFolder) = Self.repository()
+        defer { try? FileManager.default.removeItem(at: flatFolder) }
+        try FileManager.default.createDirectory(at: flat.containersURL, withIntermediateDirectories: true)
+        for container in [Self.series("00000000000000c1", holding: [season13]), season13] {
+            try ContainerFile.data(for: container).write(
+                to: flat.containersURL.appendingPathComponent("\(container.id).xml")
+            )
+        }
+        try await flat.settle()
+        #expect(
+            try Self.tree(flat) == [
+                "Doctor Who (1963) [00000000000000c1]",
+                "Doctor Who (1963) [00000000000000c1]/01 - Season 13 [00000000000000a3]",
+            ]
+        )
+        #expect(
+            try FileManager.default.contentsOfDirectory(atPath: flat.containersURL.path).allSatisfy {
+                !$0.hasSuffix(".xml")
+            }
+        )
+        try await flat.settle()
+        #expect(try await flat.containers().count == 2)
+    }
+
+    @Test func aContainerIsFoundByItsIdWhereverItIs() async throws {
+        let (repository, folder) = Self.repository()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        var season = Container(id: ContainerID("00000000000000a3")!, type: .season, title: title("Season 13"))
+        season.sequences = [
+            Sequence(id: "stories", items: [.child(Entry.Child(id: item("talons"), container: Self.talons.id))])
+        ]
+        let series = Self.series("00000000000000a1", holding: [season])
+        for container in [Self.talons, season, series] { try await repository.save(container) }
+        #expect(try await repository.container(Self.talons.id) == Self.talons)
+        let url = try #require(try repository.url(of: Self.talons.id))
+        #expect(url.lastPathComponent == LocalRepository.containerFileName)
+        #expect(
+            url.deletingLastPathComponent().lastPathComponent == "01 - The Talons of Weng-Chiang [\(Self.talons.id)]"
+        )
+        #expect(
+            try await repository.containers().map(\.id.value) == [
+                series.id.value, season.id.value, Self.talons.id.value,
+            ]
+        )
+
+        // One id in two folders fails the listing, naming the second.
+        let twin = repository.containersURL.appendingPathComponent("Twin [\(season.id)]", isDirectory: true)
+        try FileManager.default.createDirectory(at: twin, withIntermediateDirectories: true)
+        try ContainerFile.data(for: season).write(to: twin.appendingPathComponent(LocalRepository.containerFileName))
+        await #expect(throws: LocalRepositoryError.self) { try await repository.containers() }
+    }
+
+    @Test func noContainerHasTwoHomes() async throws {
+        let (repository, folder) = Self.repository()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let season = Container(id: ContainerID("00000000000000a3")!, type: .season, title: title("Season 13"))
+        let first = Self.series("00000000000000a1", holding: [season])
+        let second = Self.series("00000000000000a9", holding: [season])
+        try await repository.save(first)
+        try await repository.save(season)
+        let before = try Self.tree(repository)
+
+        do {
+            try await repository.save(second)
+            Issue.record("a second home was saved")
+        } catch LocalRepositoryError.twoHomes(let child, let homes) {
+            #expect(child == season.id && homes == [first.id, second.id])
+        }
+        #expect(try Self.tree(repository) == before, "nothing written or moved")
+
+        // A season holding its own series is a ring, refused before anything is written.
+        var ring = season
+        ring.sequences = [Sequence(items: [.child(Entry.Child(id: item("up"), container: first.id))])]
+        await #expect(throws: LocalRepositoryError.cycle(season.id)) { try await repository.save(ring) }
+        #expect(try Self.tree(repository) == before)
+
+        // Moved in one contribution, whichever series comes first, the season moves beneath the second.
+        var released = first
+        released.sequences = []
+        let written = try await repository.contribute([second, released])
+        #expect(
+            try Self.tree(repository).contains("Doctor Who (1963) [00000000000000a9]/01 - Season 13 [00000000000000a3]")
+        )
+        #expect(
+            written
+                == .written([
+                    try #require(try repository.url(of: second.id)), try #require(try repository.url(of: first.id)),
+                ])
+        )
+
+        // A contribution that leaves one held twice is refused whole.
+        await #expect(
+            throws: ContributionError.twoHomes([
+                ContributionError.Homes(child: season.id, homes: [first.id, second.id])
+            ])
+        ) {
+            try await repository.contribute([first])
+        }
     }
 
     @Test func slugsAreMadeFromTitles() {

@@ -27,6 +27,9 @@ public enum ContributionError: Error, Equatable, LocalizedError {
     /// Every container that names, as a child or as the container of a ref, one that neither the
     /// database nor the contribution holds, in the contribution's order.
     case missing([Missing])
+    /// Every container the contribution would leave held by more than one container, judged with the
+    /// contribution's containers in place of the database's, with its homes.
+    case twoHomes([Homes])
 
     public struct Missing: Hashable, Sendable {
         public var container: ContainerID
@@ -38,6 +41,16 @@ public enum ContributionError: Error, Equatable, LocalizedError {
         }
     }
 
+    public struct Homes: Hashable, Sendable {
+        public var child: ContainerID
+        public var homes: [ContainerID]
+
+        public init(child: ContainerID, homes: [ContainerID]) {
+            self.child = child
+            self.homes = homes
+        }
+    }
+
     public var errorDescription: String? {
         switch self {
         case .duplicate(let ids):
@@ -45,6 +58,11 @@ public enum ContributionError: Error, Equatable, LocalizedError {
         case .missing(let missing):
             missing.map { "\($0.container) names \($0.names), which neither the database nor the contribution holds" }
                 .joined(separator: "\n")
+        case .twoHomes(let twice):
+            twice.map {
+                "\($0.child) would be held by \($0.homes.map(\.value).joined(separator: " and ")); a container has one home"
+            }
+            .joined(separator: "\n")
         }
     }
 }
@@ -87,5 +105,20 @@ extension ContainerDatabase {
             }
         }
         guard missing.isEmpty else { throw ContributionError.missing(missing) }
+
+        // One home each, `StructuredContainers.md`'s principle 5, with the contribution in place of
+        // what the database holds under the same ids.
+        var merged = Dictionary(
+            try await self.containers().map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        for container in containers { merged[container.id] = container }
+        var homes: [ContainerID: [ContainerID]] = [:]
+        for container in merged.values.sorted(by: { $0.id.value < $1.id.value }) {
+            for child in Set(container.childContainerIDs) { homes[child, default: []].append(container.id) }
+        }
+        let twice = homes.filter { $0.value.count > 1 }.sorted { $0.key.value < $1.key.value }
+            .map { ContributionError.Homes(child: $0.key, homes: $0.value) }
+        guard twice.isEmpty else { throw ContributionError.twoHomes(twice) }
     }
 }
