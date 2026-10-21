@@ -921,4 +921,143 @@ struct SidecarFileTests {
             try SidecarFile.data(settingContainer: other, in: onDisk)
         }
     }
+
+    // MARK: - Attributions and declined references
+
+    static let attributions = [
+        Attribution(subject: .outline, provider: .tmdb, value: "348"),
+        Attribution(subject: .artwork("poster"), provider: .tmdb, value: "348"),
+    ]
+    static let trailer = ExternalRef(provider: .tmdb, value: "1012345")
+
+    @Test func attributionsAndDeclinedRefsSurviveTheFile() throws {
+        var sidecar = Self.pyramids
+        sidecar.attributions = Self.attributions
+        sidecar.declined = [Self.trailer]
+        sidecar.rules = Self.restoration
+        let data = try SidecarFile.data(for: sidecar)
+        let text = String(decoding: data, as: UTF8.self)
+        #expect(text.contains(#"    <attribution subject="outline" provider="tmdb" value="348"/>"#))
+        #expect(text.contains(#"    <declined provider="tmdb" value="1012345"/>"#))
+        #expect(
+            try #require(text.range(of: "<declined")).lowerBound
+                < #require(text.range(of: "<rules path")).lowerBound,
+            "the container's rules stay last"
+        )
+        #expect(try SidecarFile.sidecar(from: data) == sidecar)
+        #expect(
+            try ContainerFile.container(from: data) == sidecar.container,
+            "the repository reader ignores them"
+        )
+
+        let without = String(decoding: try SidecarFile.data(for: Self.pyramids), as: UTF8.self)
+        #expect(!without.contains("<attribution") && !without.contains("<declined"), "none, none written")
+    }
+
+    @Test func anUpdateAndAnEditKeepAttributionsAndDeclinedRefs() throws {
+        var sidecar = Self.pyramids
+        sidecar.attributions = Self.attributions
+        sidecar.declined = [Self.trailer]
+        let onDisk = try SidecarFile.data(for: sidecar)
+
+        var placed = Self.pyramids
+        placed.presentations["part2"] = [Presentation(file: "Part Two.mkv")]
+        let updated = try SidecarFile.sidecar(from: SidecarFile.data(for: placed, updating: onDisk))
+        #expect(updated.attributions == Self.attributions, "an update leaves them as they stand")
+        #expect(updated.declined == [Self.trailer])
+        #expect(updated.presentations["part2"] == [Presentation(file: "Part Two.mkv")])
+
+        var container = Self.pyramids.container
+        container.outline = "Sutekh is imprisoned beneath a pyramid."
+        let edited = try SidecarFile.sidecar(from: SidecarFile.data(settingContainer: container, in: onDisk))
+        #expect(edited.container == container)
+        #expect(edited.attributions == Self.attributions, "and so does setting the container's own fields")
+        #expect(edited.declined == [Self.trailer])
+    }
+
+    @Test func settingAttributionsOrDeclinedRefsChangesOnlyThem() throws {
+        let onDisk = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <container format="1" id="fedcba9876543210" type="serial">
+                <!-- Kept by hand. -->
+                <title>Pyramids of Mars</title>
+                <attribution subject="outline" provider="tmdb" value="1"/>
+                <sequence id="parts">
+                    <item type="episode" id="part1"><presentation file="Part One.mkv"/></item>
+                </sequence>
+                <rules path="rules" activeVersion="2"/>
+            </container>
+
+            """
+        let before = try SidecarFile.sidecar(from: Data(onDisk.utf8))
+
+        let replaced = try SidecarFile.data(settingAttributions: Self.attributions, in: Data(onDisk.utf8))
+        let replacedText = String(decoding: replaced, as: UTF8.self)
+        var expected = before
+        expected.attributions = Self.attributions
+        #expect(try SidecarFile.sidecar(from: replaced) == expected)
+        #expect(replacedText.contains("<!-- Kept by hand. -->"))
+        #expect(
+            try #require(replacedText.range(of: "<attribution subject=\"artwork/poster\"")).lowerBound
+                < #require(replacedText.range(of: "<sequence")).lowerBound,
+            "replaced where the first stood"
+        )
+
+        let declined = try SidecarFile.data(settingDeclined: [Self.trailer], in: replaced)
+        let declinedText = String(decoding: declined, as: UTF8.self)
+        expected.declined = [Self.trailer]
+        #expect(try SidecarFile.sidecar(from: declined) == expected)
+        #expect(
+            try #require(declinedText.range(of: "<declined")).lowerBound
+                < #require(declinedText.range(of: "<rules path")).lowerBound,
+            "added before the container's rules when there were none"
+        )
+
+        let removed = try SidecarFile.data(settingAttributions: [], in: declined)
+        expected.attributions = []
+        #expect(try SidecarFile.sidecar(from: removed) == expected)
+        #expect(!String(decoding: removed, as: UTF8.self).contains("<attribution"))
+
+        let appended = try SidecarFile.data(
+            settingDeclined: [Self.trailer],
+            in: SidecarFile.data(for: Self.pyramids)
+        )
+        #expect(
+            String(decoding: appended, as: UTF8.self).hasSuffix(
+                "    <declined provider=\"tmdb\" value=\"1012345\"/>\n</container>\n"
+            ),
+            "added last when there is no rules element either"
+        )
+    }
+
+    @Test func anAttributionOrADeclinedRefMustSaySomething() {
+        #expect(throws: ContainerFileError.missingAttribute(element: "attribution", attribute: "value")) {
+            try SidecarFile.sidecar(
+                from: Self.document(rules: #"<attribution subject="outline" provider="tmdb"/>"#)
+            )
+        }
+        #expect(throws: ContainerFileError.invalidValue(element: "attribution", attribute: "subject", value: "")) {
+            try SidecarFile.sidecar(
+                from: Self.document(rules: #"<attribution subject="" provider="tmdb" value="348"/>"#)
+            )
+        }
+        #expect(throws: ContainerFileError.missingAttribute(element: "declined", attribute: "provider")) {
+            try SidecarFile.sidecar(from: Self.document(rules: #"<declined value="348"/>"#))
+        }
+    }
+
+    @Test func anAttributionsSubjectIsReadAsWritten() throws {
+        #expect(Attribution.Subject.outline.isField)
+        #expect(Attribution.Subject.outline(ofAlternative: "se").alternative == "se")
+        #expect(Attribution.Subject.outline(ofAlternative: "se").isField)
+        #expect(Attribution.Subject.artwork("poster").artworkKind == "poster")
+        #expect(!Attribution.Subject.artwork("poster").isField)
+
+        let odd = try SidecarFile.sidecar(
+            from: Self.document(rules: #"<attribution subject="tagline" provider="tmdb" value="348"/>"#)
+        )
+        let subject = try #require(odd.attributions.first?.subject)
+        #expect(subject.rawValue == "tagline", "a subject nothing names is read, for a checker to report")
+        #expect(!subject.isField && subject.artworkKind == nil && subject.alternative == nil)
+    }
 }
