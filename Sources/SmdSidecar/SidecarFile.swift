@@ -28,7 +28,8 @@ import Foundation
 /// the writer's to resolve.
 ///
 /// What an update leaves alone has setters of its own, each changing only what it names: the
-/// container's own fields, the container's rules, and a binding's rules.
+/// container's own fields, the container's rules, a binding's rules, the attributions and the
+/// declined references.
 public enum SidecarFile {
     public static let fileName = "container.smd"
 
@@ -57,6 +58,16 @@ public enum SidecarFile {
         let rules = root.elements(forName: "rules")
         guard rules.count <= 1 else { throw SidecarFileError.multipleRules }
         sidecar.rules = try rules.first.map(Self.rules)
+        sidecar.attributions = try root.elements(forName: "attribution").map {
+            Attribution(
+                subject: Attribution.Subject(rawValue: try $0.nonEmpty("subject")),
+                provider: Provider(rawValue: try $0.nonEmpty("provider")),
+                value: try $0.nonEmpty("value")
+            )
+        }
+        sidecar.declined = try root.elements(forName: "declined").map {
+            ExternalRef(provider: Provider(rawValue: try $0.nonEmpty("provider")), value: try $0.nonEmpty("value"))
+        }
         return sidecar
     }
 
@@ -166,6 +177,8 @@ public enum SidecarFile {
                     insertBeforePresentations(binding.rules.element(binding: binding.binding), in: item)
                 }
             }
+            for attribution in sidecar.attributions { root.addChild(attributionElement(attribution)) }
+            for ref in sidecar.declined { root.addChild(declinedElement(ref)) }
             if let rules = sidecar.rules {
                 root.addChild(rules.element())
             }
@@ -421,6 +434,15 @@ extension XMLElement {
     fileprivate func required(_ name: String) throws -> String {
         guard let value = attribute(name) else {
             throw ContainerFileError.missingAttribute(element: self.name ?? "?", attribute: name)
+        }
+        return value
+    }
+
+    /// An attribute that must be there and say something.
+    fileprivate func nonEmpty(_ name: String) throws -> String {
+        let value = try required(name)
+        guard !value.isEmpty else {
+            throw ContainerFileError.invalidValue(element: self.name ?? "?", attribute: name, value: value)
         }
         return value
     }

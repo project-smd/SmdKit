@@ -5,8 +5,9 @@ import SmdKit
 
 /// A container as a library keeps it: the same container the repository holds, plus the facts
 /// that are the library's own — which file holds each presentation of each item, where each
-/// child container's sidecar is, and which version of the rules the library encodes the
-/// container's files by, and each binding's. `StructuredContainers.md` calls the file an `.smd`; the repository file is
+/// child container's sidecar is, which version of the rules the library encodes the container's
+/// files by, and each binding's, whose each attributed field and artwork kind is, and which of a
+/// provider's references the library declined. `StructuredContainers.md` calls the file an `.smd`; the repository file is
 /// that element with these facts taken out, and this is them put back.
 public struct Sidecar: Hashable, Sendable {
     public var container: Container
@@ -23,19 +24,32 @@ public struct Sidecar: Hashable, Sendable {
     /// order they are listed. Authored like the container's, so an update leaves them as they stand;
     /// `SidecarFile.data(settingRules:binding:item:in:)` is how one changes.
     public var bindingRules: [String: [BindingRules]]
+    /// Whose each attributed field or artwork kind is, in the order they are listed. Authored like
+    /// the rules, so an update leaves them as they stand; `SidecarFile.data(settingAttributions:in:)`
+    /// is how they change.
+    public var attributions: [Attribution]
+    /// References a provider lists for the container that the library chose not to hold, in the
+    /// order they are listed. Another library holding the container may choose differently. Authored,
+    /// so an update leaves them as they stand; `SidecarFile.data(settingDeclined:in:)` is how they
+    /// change.
+    public var declined: [ExternalRef]
 
     public init(
         container: Container,
         children: [ContainerID: String] = [:],
         presentations: [String: [Presentation]] = [:],
         rules: SidecarRules? = nil,
-        bindingRules: [String: [BindingRules]] = [:]
+        bindingRules: [String: [BindingRules]] = [:],
+        attributions: [Attribution] = [],
+        declined: [ExternalRef] = []
     ) {
         self.container = container
         self.children = children
         self.presentations = presentations
         self.rules = rules
         self.bindingRules = bindingRules
+        self.attributions = attributions
+        self.declined = declined
     }
 
     /// The name a presentation is shown under: its alternative's title, or its profile, or

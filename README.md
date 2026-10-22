@@ -56,8 +56,9 @@ swift test
   from and the rule layers that made it — where each child's sidecar is, and the `<rules>` of the
   container and of each binding that has its own — which version of the rules, kept as files in a
   folder beside the sidecar, the server that encodes the library applies; the rules themselves are
-  never read here — and `SidecarFile` reads and writes it as the repository file with those facts
-  in.
+  never read here — whose each attributed outline or artwork kind is, and which of a provider's
+  references the library declined; and `SidecarFile` reads and writes it as the repository file
+  with those facts in.
   Writing has an update mode that changes only the library's facts in a document that is
   already on disk, leaving comments and hand-written fields alone.
 
@@ -119,6 +120,8 @@ proposal lists:
 | `nfo="tvshow.nfo"` | `<externalRef provider="tvdb" value="76107"/>` | The NFO is where a library keeps the provider's id; here the id is the fact |
 | `<presentation file="…">`, with its `<source binding>` and `<transform>` | absent | Which file holds a thing, and how this library made it, are a library's facts |
 | `<rules path="rules" activeVersion="4"/>`, on a container or, naming a binding, on an item | absent | How a library encodes a container's files is its own policy |
+| `<attribution subject="outline" provider="tmdb" value="…"/>` | absent | A provider's contributors' writing or image is credited where it is kept, and is not the database's to hold |
+| `<declined provider="tmdb" value="…"/>` | absent | What a library chose not to hold is its own choice |
 | `<item ref="behind-the-sofa#s13-pyramids"/>` | `<item ref="<16 hex>#s13-pyramids"/>` | Same form, global id |
 
 Everything else — titles, `year` (with `inTitle="true"` when the year is part of the name),
