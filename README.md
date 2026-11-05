@@ -125,8 +125,9 @@ proposal lists:
 | `<item ref="behind-the-sofa#s13-pyramids"/>` | `<item ref="<16 hex>#s13-pyramids"/>` | Same form, global id |
 
 Everything else — titles, `year` (with `inTitle="true"` when the year is part of the name),
-`typeLabel`, `outline`, `listed`, `<alternatives default="…">`,
-`<features>`, `<sequence>`, `<item>`, `optional`, `<extras anchor="…">` — is spelled as the
+`premiered` (the day it was first broadcast or released, `yyyy-mm-dd`), `typeLabel`, `outline`,
+`listed`, `<cast>` and `<crew>`, `<alternatives default="…">`, `<features>`, `<participant>` with its
+own `<externalRef>`s, `<sequence>`, `<item>`, `optional`, `<extras anchor="…">` — is spelled as the
 sidecar spells it, so writing an `.smd` from one of these is a projection and not a
 translation. Elements with no content are omitted; `listed` is written only when false.
 

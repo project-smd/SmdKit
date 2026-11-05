@@ -896,6 +896,34 @@ struct SidecarFileTests {
         #expect(try SidecarFile.data(settingContainer: Self.pyramids.container, in: generated) == generated)
     }
 
+    /// A participant's references are inside it, so setting the container compares them too: a
+    /// participant whose name and role stand but whose references change is written anew, and a
+    /// credit the value drops is gone.
+    @Test func settingTheContainerChangesItsCreditsAndTheirReferences() throws {
+        var episode = Container(
+            id: ContainerID("0123456789abcdef")!,
+            type: .episode,
+            title: Title("Kassa")!,
+            cast: [Participant(name: "Diego Luna", role: "Cassian Andor"), Participant(name: "Kyle Soller")],
+            crew: [Participant(name: "Toby Haynes", role: "Director")],
+            sequences: [Sequence(id: "main", items: [.leaf(Entry.Leaf(id: ItemID("feature")!, type: .episode))])]
+        )
+        let onDisk = try SidecarFile.data(
+            for: Sidecar(container: episode, presentations: ["feature": [Presentation(file: "Kassa.mkv")]])
+        )
+        episode.premiered = CalendarDate("2022-09-21")
+        episode.cast = [
+            Participant(
+                name: "Diego Luna",
+                role: "Cassian Andor",
+                externalRefs: [ExternalRef(provider: .wikidata, value: "Q193668")]
+            )
+        ]
+        let read = try SidecarFile.sidecar(from: SidecarFile.data(settingContainer: episode, in: onDisk))
+        #expect(read.container == episode)
+        #expect(read.presentations["feature"] == [Presentation(file: "Kassa.mkv")])
+    }
+
     @Test func settingTheContainerRemovesAnItemItNoLongerDeclares() throws {
         let onDisk = try SidecarFile.data(for: Self.pyramids)
         var container = Self.pyramids.container

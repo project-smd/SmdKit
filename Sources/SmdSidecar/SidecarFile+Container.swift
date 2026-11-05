@@ -74,8 +74,12 @@ extension SidecarFile {
     /// else inside one is not the container's own, and is kept by setting it.
     private static let ownChildren: [String: Set<String>] = [
         "container": [
-            "title", "year", "typeLabel", "outline", "externalRef", "alternatives", "features", "sequence", "extras",
+            "title", "year", "premiered", "typeLabel", "outline", "externalRef", "cast", "crew", "alternatives",
+            "features", "sequence", "extras",
         ],
+        "cast": ["participant"],
+        "crew": ["participant"],
+        "participant": ["externalRef"],
         "alternatives": ["alternative"],
         "alternative": ["title", "outline"],
         "features": ["feature"],
