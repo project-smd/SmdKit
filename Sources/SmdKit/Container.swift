@@ -250,6 +250,12 @@ public struct Container: Identifiable, Hashable, Sendable {
     /// "Doctor Who" — as a library folder or a listing shows it. See `displayTitle`.
     public var yearInTitle: Bool
     public var outline: String?
+    /// The day the container was first broadcast or released: an episode's air date, a film's release.
+    public var premiered: CalendarDate?
+    /// Who is in it, in the order credited, each with the character they play.
+    public var cast: [Participant]
+    /// Who made it, in the order credited, each with their job.
+    public var crew: [Participant]
     /// False for a companion series nobody browses to directly: reachable through a relation or a
     /// ref, and nowhere else.
     public var listed: Bool
@@ -271,6 +277,9 @@ public struct Container: Identifiable, Hashable, Sendable {
         year: Int? = nil,
         yearInTitle: Bool = false,
         outline: String? = nil,
+        premiered: CalendarDate? = nil,
+        cast: [Participant] = [],
+        crew: [Participant] = [],
         listed: Bool = true,
         externalRefs: [ExternalRef] = [],
         defaultAlternative: String? = nil,
@@ -287,6 +296,9 @@ public struct Container: Identifiable, Hashable, Sendable {
         self.year = year
         self.yearInTitle = yearInTitle
         self.outline = outline
+        self.premiered = premiered
+        self.cast = cast
+        self.crew = crew
         self.listed = listed
         self.externalRefs = externalRefs
         self.defaultAlternative = defaultAlternative
@@ -359,13 +371,19 @@ public struct FeatureType: Hashable, Sendable, Codable, RawRepresentable, Custom
     public var description: String { rawValue }
 }
 
+/// A person credited on a container or a feature. The role is what the person is to the programme: a
+/// character for the cast, a job for the crew, as an NFO's `<actor>` has it.
 public struct Participant: Hashable, Sendable {
     public var name: String
     public var role: String?
+    /// Who the person is, where a provider knows them: a name is not an identity, so two credits are
+    /// the same person when they share a reference, not when they share a spelling.
+    public var externalRefs: [ExternalRef]
 
-    public init(name: String, role: String? = nil) {
+    public init(name: String, role: String? = nil, externalRefs: [ExternalRef] = []) {
         self.name = name
         self.role = role
+        self.externalRefs = externalRefs
     }
 }
 

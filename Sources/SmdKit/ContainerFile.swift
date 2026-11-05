@@ -52,41 +52,15 @@ public enum ContainerFile {
             if container.yearInTitle { element.set("inTitle", "true") }
             root.addChild(element)
         }
+        root.addText("premiered", container.premiered?.description)
         root.addText("typeLabel", container.typeLabel)
         root.addText("outline", container.outline)
         root.addExternalRefs(container.externalRefs)
+        root.addParticipants("cast", container.cast)
+        root.addParticipants("crew", container.crew)
 
-        if !container.alternatives.isEmpty {
-            let alternatives = XMLElement(name: "alternatives")
-            alternatives.set("default", container.defaultAlternative)
-            for alternative in container.alternatives {
-                let element = XMLElement(name: "alternative")
-                element.set("id", alternative.id)
-                element.set("sequence", alternative.sequence)
-                element.addText("title", alternative.title)
-                element.addText("outline", alternative.outline)
-                alternatives.addChild(element)
-            }
-            root.addChild(alternatives)
-        }
-
-        if !container.features.isEmpty {
-            let features = XMLElement(name: "features")
-            for feature in container.features {
-                let element = XMLElement(name: "feature")
-                element.set("id", feature.id)
-                element.set("type", feature.type.rawValue)
-                element.addText("title", feature.title)
-                for participant in feature.participants {
-                    let child = XMLElement(name: "participant")
-                    child.set("name", participant.name)
-                    child.set("role", participant.role)
-                    element.addChild(child)
-                }
-                features.addChild(element)
-            }
-            root.addChild(features)
-        }
+        if let alternatives = alternativesElement(container) { root.addChild(alternatives) }
+        if let features = featuresElement(container) { root.addChild(features) }
 
         for sequence in container.sequences {
             let element = XMLElement(name: "sequence")
@@ -173,17 +147,13 @@ public enum ContainerFile {
             container.year = year
             container.yearInTitle = try yearElement.bool("inTitle") ?? false
         }
+        container.premiered = try premiered(root)
+        container.cast = try root.child("cast")?.participants() ?? []
+        container.crew = try root.child("crew")?.participants() ?? []
 
         if let alternatives = root.child("alternatives") {
             container.defaultAlternative = alternatives.attribute("default")
-            container.alternatives = try alternatives.elements(forName: "alternative").map { element in
-                Alternative(
-                    id: try element.required("id"),
-                    sequence: try element.required("sequence"),
-                    title: element.text("title"),
-                    outline: element.text("outline")
-                )
-            }
+            container.alternatives = try alternatives.elements(forName: "alternative").map(alternative)
         }
 
         if let features = root.child("features") {
@@ -222,17 +192,6 @@ public enum ContainerFile {
         } catch {
             throw ContainerFileError.malformed(error.localizedDescription)
         }
-    }
-
-    private static func feature(_ element: XMLElement) throws -> Feature {
-        Feature(
-            id: try element.required("id"),
-            type: FeatureType(rawValue: try element.required("type")),
-            title: element.text("title"),
-            participants: try element.elements(forName: "participant").map {
-                Participant(name: try $0.required("name"), role: $0.attribute("role"))
-            }
-        )
     }
 
     private static func sequence(_ element: XMLElement) throws -> Sequence {
@@ -338,6 +297,73 @@ public enum ContainerFileError: Error, Equatable, LocalizedError {
     }
 }
 
+// MARK: - Alternatives, features and participants
+
+extension ContainerFile {
+    fileprivate static func alternativesElement(_ container: Container) -> XMLElement? {
+        guard !container.alternatives.isEmpty else { return nil }
+        let alternatives = XMLElement(name: "alternatives")
+        alternatives.set("default", container.defaultAlternative)
+        for alternative in container.alternatives {
+            let element = XMLElement(name: "alternative")
+            element.set("id", alternative.id)
+            element.set("sequence", alternative.sequence)
+            element.addText("title", alternative.title)
+            element.addText("outline", alternative.outline)
+            alternatives.addChild(element)
+        }
+        return alternatives
+    }
+
+    fileprivate static func featuresElement(_ container: Container) -> XMLElement? {
+        guard !container.features.isEmpty else { return nil }
+        let features = XMLElement(name: "features")
+        for feature in container.features {
+            let element = XMLElement(name: "feature")
+            element.set("id", feature.id)
+            element.set("type", feature.type.rawValue)
+            element.addText("title", feature.title)
+            for participant in feature.participants { element.addChild(participantElement(participant)) }
+            features.addChild(element)
+        }
+        return features
+    }
+
+    fileprivate static func participantElement(_ participant: Participant) -> XMLElement {
+        let element = XMLElement(name: "participant")
+        element.set("name", participant.name)
+        element.set("role", participant.role)
+        element.addExternalRefs(participant.externalRefs)
+        return element
+    }
+
+    fileprivate static func alternative(_ element: XMLElement) throws -> Alternative {
+        Alternative(
+            id: try element.required("id"),
+            sequence: try element.required("sequence"),
+            title: element.text("title"),
+            outline: element.text("outline")
+        )
+    }
+
+    fileprivate static func premiered(_ root: XMLElement) throws -> CalendarDate? {
+        guard let text = root.text("premiered") else { return nil }
+        guard let premiered = CalendarDate(text) else {
+            throw ContainerFileError.invalidText(element: "premiered", value: text)
+        }
+        return premiered
+    }
+
+    fileprivate static func feature(_ element: XMLElement) throws -> Feature {
+        Feature(
+            id: try element.required("id"),
+            type: FeatureType(rawValue: try element.required("type")),
+            title: element.text("title"),
+            participants: try element.participants()
+        )
+    }
+}
+
 // MARK: - XML helpers
 
 extension XMLElement {
@@ -357,6 +383,20 @@ extension XMLElement {
             element.set("provider", ref.provider.rawValue)
             element.set("value", ref.value)
             addChild(element)
+        }
+    }
+
+    /// A `<cast>` or a `<crew>`, holding its participants, when there are any.
+    fileprivate func addParticipants(_ name: String, _ participants: [Participant]) {
+        guard !participants.isEmpty else { return }
+        let element = XMLElement(name: name)
+        for participant in participants { element.addChild(ContainerFile.participantElement(participant)) }
+        addChild(element)
+    }
+
+    fileprivate func participants() throws -> [Participant] {
+        try elements(forName: "participant").map {
+            Participant(name: try $0.required("name"), role: $0.attribute("role"), externalRefs: try $0.externalRefs())
         }
     }
 

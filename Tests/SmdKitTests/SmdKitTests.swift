@@ -281,6 +281,16 @@ struct SmdKitTests {
         #expect(throws: ContainerFileError.invalidText(element: "title", value: "")) {
             try read(#"<container format="1" id="\#(id)" type="series"><title>   </title></container>"#)
         }
+        #expect(throws: ContainerFileError.invalidText(element: "premiered", value: "2022-13-01")) {
+            try read(
+                #"<container format="1" id="\#(id)" type="episode"><title>x</title><premiered>2022-13-01</premiered></container>"#
+            )
+        }
+        #expect(throws: ContainerFileError.missingAttribute(element: "participant", attribute: "name")) {
+            try read(
+                #"<container format="1" id="\#(id)" type="episode"><title>x</title><cast><participant role="Leela"/></cast></container>"#
+            )
+        }
         #expect(throws: ContainerFileError.invalidValue(element: "item", attribute: "container", value: "\(other)")) {
             try read(
                 #"<container format="1" id="\#(id)" type="series"><title>x</title><sequence><item type="episode" id="e1" container="\#(other)"/></sequence></container>"#
@@ -362,6 +372,136 @@ struct SmdKitTests {
         #expect(
             open.sequences.first?.items == [.leaf(Entry.Leaf(id: item("e1"), type: EntryType(rawValue: "special")!))]
         )
+    }
+
+    @Test func aContainersCreditsAreWrittenInTheirOrder() throws {
+        // The first date after the year, and the cast and then the crew after the references, each
+        // participant holding its own references; then everything read back as it was written.
+        let episode = Container(
+            id: ContainerID("0123456789abcdef")!,
+            type: .episode,
+            title: title("Kassa"),
+            outline: "A man looks for his sister.",
+            premiered: CalendarDate("2022-09-21"),
+            cast: [
+                Participant(
+                    name: "Diego Luna",
+                    role: "Cassian Andor",
+                    externalRefs: [ExternalRef(provider: .wikidata, value: "Q193668")]
+                ),
+                Participant(name: "Kyle Soller"),
+            ],
+            crew: [Participant(name: "Toby Haynes", role: "Director")],
+            externalRefs: [ExternalRef(provider: .wikidata, value: "Q118877501")],
+            sequences: [Sequence(id: "main", items: [.leaf(Entry.Leaf(id: item("feature"), type: .episode))])]
+        )
+        let expected = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <container format="1" id="0123456789abcdef" type="episode">
+                <title>Kassa</title>
+                <premiered>2022-09-21</premiered>
+                <outline>A man looks for his sister.</outline>
+                <externalRef provider="wikidata" value="Q118877501"/>
+                <cast>
+                    <participant name="Diego Luna" role="Cassian Andor">
+                        <externalRef provider="wikidata" value="Q193668"/>
+                    </participant>
+                    <participant name="Kyle Soller"/>
+                </cast>
+                <crew>
+                    <participant name="Toby Haynes" role="Director"/>
+                </crew>
+                <sequence id="main">
+                    <item type="episode" id="feature"/>
+                </sequence>
+            </container>
+
+            """
+        let data = ContainerFile.data(for: episode)
+        #expect(String(decoding: data, as: UTF8.self) == expected)
+        #expect(try ContainerFile.container(from: data, expecting: episode.id) == episode)
+
+        let bare = String(
+            decoding: ContainerFile.data(for: Container(type: .episode, title: title("T"))),
+            as: UTF8.self
+        )
+        for element in ["<premiered", "<cast", "<crew"] {
+            #expect(!bare.contains(element), "\(element) is omitted when empty")
+        }
+    }
+
+    @Test func aParticipantCarriesItsReferences() throws {
+        var serial = Container(type: .serial, title: title("Pyramids of Mars"))
+        let tom = Participant(
+            name: "Tom Baker",
+            role: "The Doctor",
+            externalRefs: [
+                ExternalRef(provider: .wikidata, value: "Q210061"), ExternalRef(provider: .tmdb, value: "18066"),
+            ]
+        )
+        serial.features = [Feature(id: "c1", type: .commentary, participants: [tom])]
+        let data = ContainerFile.data(for: serial)
+        #expect(
+            String(decoding: data, as: UTF8.self).contains(
+                """
+                <participant name="Tom Baker" role="The Doctor">
+                                <externalRef provider="wikidata" value="Q210061"/>
+                                <externalRef provider="tmdb" value="18066"/>
+                            </participant>
+                """
+            )
+        )
+        #expect(try ContainerFile.container(from: data).features.first?.participants == [tom])
+    }
+
+    @Test func calendarDatesAreCheckedEverywhere() throws {
+        #expect(CalendarDate("2022-09-21")?.description == "2022-09-21")
+        #expect(CalendarDate("2022-09-21") == CalendarDate(year: 2022, month: 9, day: 21))
+        #expect(CalendarDate("2022-02-30") == nil)
+        #expect(CalendarDate("2022-13-01") == nil)
+        #expect(CalendarDate("2022-00-10") == nil)
+        #expect(CalendarDate("2024-02-29") != nil, "a leap year")
+        #expect(CalendarDate("1900-02-29") == nil, "a century that is not a leap year")
+        #expect(CalendarDate("2000-02-29") != nil, "a century that is")
+        #expect(CalendarDate("2022-9-21") == nil, "unpadded")
+        #expect(CalendarDate("22-09-21") == nil)
+        #expect(CalendarDate("2022-09-21T00:00:00Z") == nil)
+        #expect(CalendarDate("+022-09-21") == nil)
+        #expect(CalendarDate(year: 5, month: 1, day: 2)?.description == "0005-01-02")
+        #expect(CalendarDate("1963-11-23")! < CalendarDate("1975-10-25")!)
+        #expect(
+            try JSONDecoder().decode(CalendarDate.self, from: Data(#""2022-09-21""#.utf8)) == CalendarDate("2022-09-21")
+        )
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(CalendarDate.self, from: Data(#""2022-02-30""#.utf8))
+        }
+        #expect(
+            String(decoding: try JSONEncoder().encode(CalendarDate("2022-09-21")!), as: UTF8.self) == #""2022-09-21""#
+        )
+    }
+
+    @Test func aContainerCarriesItsCredits() {
+        let luna = Participant(
+            name: "Diego Luna",
+            role: "Cassian Andor",
+            externalRefs: [ExternalRef(provider: .wikidata, value: "Q193668")]
+        )
+        let haynes = Participant(
+            name: "Toby Haynes",
+            role: "Director",
+            externalRefs: [ExternalRef(provider: .wikidata, value: "Q7811842")]
+        )
+        let episode = Container(
+            type: .episode,
+            title: title("Kassa"),
+            premiered: CalendarDate("2022-09-21"),
+            cast: [luna],
+            crew: [haynes]
+        )
+        #expect(episode.premiered?.description == "2022-09-21")
+        #expect(episode.cast == [luna])
+        #expect(episode.crew == [haynes])
+        #expect(Container(type: .movie, title: title("T")).premiered == nil)
     }
 
     @Test func containerIDsAreCheckedEverywhere() throws {
