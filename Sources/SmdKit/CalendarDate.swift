@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 the smddb project authors
 
-import Foundation
-
 /// A day of the proleptic Gregorian calendar, written `yyyy-mm-dd`: when a container was first
 /// broadcast or released. A day and no more, because that is what a broadcast listing or a release
 /// records, and no time zone, since none is known.
