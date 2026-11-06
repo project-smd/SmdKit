@@ -4,18 +4,21 @@
 import SmdKit
 
 /// Whose a field of the container, or a kind of its artwork, is: the provider it came from and the
-/// reference it came from there. A library fact, as a presentation is — the repository document has
+/// reference it came from there, and the day it was read, so that a library can tell when a provider's
+/// terms no longer let it be kept. A library fact, as a presentation is — the repository document has
 /// no place for it, since what a provider's contributors wrote is not the database's to hold — so
 /// that a player can credit it and an export can leave it out.
 public struct Attribution: Hashable, Sendable, Codable {
     public var subject: Subject
     public var provider: Provider
     public var value: String
+    public var read: CalendarDate
 
-    public init(subject: Subject, provider: Provider, value: String) {
+    public init(subject: Subject, provider: Provider, value: String, read: CalendarDate) {
         self.subject = subject
         self.provider = provider
         self.value = value
+        self.read = read
     }
 
     /// What is attributed, as the `subject` attribute spells it: `outline`, an alternative's outline

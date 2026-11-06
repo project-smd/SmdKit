@@ -120,7 +120,7 @@ proposal lists:
 | `nfo="tvshow.nfo"` | `<externalRef provider="tvdb" value="76107"/>` | The NFO is where a library keeps the provider's id; here the id is the fact |
 | `<presentation file="…">`, with its `<source binding>` and `<transform>` | absent | Which file holds a thing, and how this library made it, are a library's facts |
 | `<rules path="rules" activeVersion="4"/>`, on a container or, naming a binding, on an item | absent | How a library encodes a container's files is its own policy |
-| `<attribution subject="outline" provider="tmdb" value="…"/>` | absent | A provider's contributors' writing or image is credited where it is kept, and is not the database's to hold |
+| `<attribution subject="outline" provider="tmdb" value="…" read="2026-11-05"/>` | absent | A provider's contributors' writing or image is credited where it is kept, with the day it was read so that a provider's terms on keeping it can be honoured, and is not the database's to hold |
 | `<declined provider="tmdb" value="…"/>` | absent | What a library chose not to hold is its own choice |
 | `<item ref="behind-the-sofa#s13-pyramids"/>` | `<item ref="<16 hex>#s13-pyramids"/>` | Same form, global id |
 

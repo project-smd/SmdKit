@@ -62,7 +62,8 @@ public enum SidecarFile {
             Attribution(
                 subject: Attribution.Subject(rawValue: try $0.nonEmpty("subject")),
                 provider: Provider(rawValue: try $0.nonEmpty("provider")),
-                value: try $0.nonEmpty("value")
+                value: try $0.nonEmpty("value"),
+                read: try $0.calendarDate("read")
             )
         }
         sidecar.declined = try root.elements(forName: "declined").map {
@@ -445,6 +446,14 @@ extension XMLElement {
             throw ContainerFileError.invalidValue(element: self.name ?? "?", attribute: name, value: value)
         }
         return value
+    }
+
+    fileprivate func calendarDate(_ name: String) throws -> CalendarDate {
+        let value = try required(name)
+        guard let date = CalendarDate(value) else {
+            throw ContainerFileError.invalidValue(element: self.name ?? "?", attribute: name, value: value)
+        }
+        return date
     }
 
     fileprivate func integer(_ name: String) throws -> Int {

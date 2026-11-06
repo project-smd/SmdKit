@@ -49,6 +49,7 @@ extension SidecarFile {
         element.set("subject", attribution.subject.rawValue)
         element.set("provider", attribution.provider.rawValue)
         element.set("value", attribution.value)
+        element.set("read", attribution.read.description)
         return element
     }
 

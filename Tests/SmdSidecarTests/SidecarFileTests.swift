@@ -952,9 +952,10 @@ struct SidecarFileTests {
 
     // MARK: - Attributions and declined references
 
+    static let readOn = CalendarDate(year: 2026, month: 11, day: 5)!
     static let attributions = [
-        Attribution(subject: .outline, provider: .tmdb, value: "348"),
-        Attribution(subject: .artwork("poster"), provider: .tmdb, value: "348"),
+        Attribution(subject: .outline, provider: .tmdb, value: "348", read: readOn),
+        Attribution(subject: .artwork("poster"), provider: .tmdb, value: "348", read: readOn),
     ]
     static let trailer = ExternalRef(provider: .tmdb, value: "1012345")
 
@@ -965,7 +966,7 @@ struct SidecarFileTests {
         sidecar.rules = Self.restoration
         let data = try SidecarFile.data(for: sidecar)
         let text = String(decoding: data, as: UTF8.self)
-        #expect(text.contains(#"    <attribution subject="outline" provider="tmdb" value="348"/>"#))
+        #expect(text.contains(#"    <attribution subject="outline" provider="tmdb" value="348" read="2026-11-05"/>"#))
         #expect(text.contains(#"    <declined provider="tmdb" value="1012345"/>"#))
         #expect(
             try #require(text.range(of: "<declined")).lowerBound
@@ -1009,7 +1010,7 @@ struct SidecarFileTests {
             <container format="1" id="fedcba9876543210" type="serial">
                 <!-- Kept by hand. -->
                 <title>Pyramids of Mars</title>
-                <attribution subject="outline" provider="tmdb" value="1"/>
+                <attribution subject="outline" provider="tmdb" value="1" read="2026-05-01"/>
                 <sequence id="parts">
                     <item type="episode" id="part1"><presentation file="Part One.mkv"/></item>
                 </sequence>
@@ -1069,6 +1070,20 @@ struct SidecarFileTests {
                 from: Self.document(rules: #"<attribution subject="" provider="tmdb" value="348"/>"#)
             )
         }
+        #expect(throws: ContainerFileError.missingAttribute(element: "attribution", attribute: "read")) {
+            try SidecarFile.sidecar(
+                from: Self.document(rules: #"<attribution subject="outline" provider="tmdb" value="348"/>"#)
+            )
+        }
+        #expect(
+            throws: ContainerFileError.invalidValue(element: "attribution", attribute: "read", value: "2026-02-30")
+        ) {
+            try SidecarFile.sidecar(
+                from: Self.document(
+                    rules: #"<attribution subject="outline" provider="tmdb" value="348" read="2026-02-30"/>"#
+                )
+            )
+        }
         #expect(throws: ContainerFileError.missingAttribute(element: "declined", attribute: "provider")) {
             try SidecarFile.sidecar(from: Self.document(rules: #"<declined value="348"/>"#))
         }
@@ -1082,7 +1097,9 @@ struct SidecarFileTests {
         #expect(!Attribution.Subject.artwork("poster").isField)
 
         let odd = try SidecarFile.sidecar(
-            from: Self.document(rules: #"<attribution subject="tagline" provider="tmdb" value="348"/>"#)
+            from: Self.document(
+                rules: #"<attribution subject="tagline" provider="tmdb" value="348" read="2026-11-05"/>"#
+            )
         )
         let subject = try #require(odd.attributions.first?.subject)
         #expect(subject.rawValue == "tagline", "a subject nothing names is read, for a checker to report")
